@@ -1,0 +1,1 @@
+https://huggingface.co/abenzerps/Qwen-Image-2.1-Uncensored-GGUF
