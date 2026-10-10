@@ -1,0 +1,10 @@
+# Copy this into your ComfyUI root as `extra_model_paths.yaml` so ComfyUI reads
+# the weights from this repo's models/ folder instead of its own.
+# Edit base_path to the absolute path of this repo's models/ directory.
+qwen_image_gguf:
+    base_path: C:/cc/Qwen-Image-2.1-Uncensored-GGUF/models
+    diffusion_models: diffusion_models
+    unet: diffusion_models
+    text_encoders: text_encoders
+    clip: text_encoders
+    vae: vae

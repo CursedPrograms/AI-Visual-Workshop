@@ -1,0 +1,22 @@
+{
+  "Config": {
+    "AppName": "Qwen-Image 2.1 GGUF",
+    "Description": "A Flask web UI and JSON API for text-to-image generation with the GGUF quantizations of Qwen-Image 2.1, driving a running ComfyUI backend.",
+    "Example": "a watercolour lighthouse on a rocky coast at dusk",
+    "Backend": "ComfyUI (http://127.0.0.1:8188)",
+    "Functionalities": [
+      {
+        "Name": "Text-to-image generation",
+        "Description": "Enter a prompt and parameters (resolution, steps, CFG, seed, batch) and the server queues the Qwen-Image 2.1 GGUF workflow on ComfyUI, waits for the render and returns the images in the browser and to the output/ directory."
+      },
+      {
+        "Name": "Model and quantization switching",
+        "Description": "Pick any published GGUF quantization (Q4_0 through BF16) and either text encoder (int8 or bf16) per request without editing the workflow."
+      },
+      {
+        "Name": "JSON API",
+        "Description": "POST /api/generate with a JSON body to script generation; GET /api/health reports whether the ComfyUI backend is reachable."
+      }
+    ]
+  }
+}

@@ -179,3 +179,13 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+# Generated images
+output/
+
+# Model weights & caches — downloaded separately, multi-GB, never commit
+models/
+*.gguf
+*.safetensors
+*.ckpt
+*.pt
+*.pth

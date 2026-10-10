@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ config.AppName }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <h1>{{ config.AppName }}</h1>
+  <span class="tag">Qwen-Image 2.1 · GGUF</span>
+  <div id="status"><span class="dot" id="dot"></span><span id="statusText">checking backend…</span></div>
+</header>
+
+<main>
+  <form class="panel" id="form">
+    <label for="prompt">Prompt</label>
+    <textarea id="prompt" rows="4" placeholder="a watercolour lighthouse on a rocky coast at dusk">{{ config.Example or "" }}</textarea>
+
+    <label for="negative">Negative prompt <span class="hint">(only used when CFG &gt; 1)</span></label>
+    <textarea id="negative" rows="2" placeholder="blurry, low quality"></textarea>
+
+    <div class="row">
+      <div>
+        <label for="width">Width</label>
+        <input id="width" type="number" value="1024" min="256" max="2048" step="32">
+      </div>
+      <div>
+        <label for="height">Height</label>
+        <input id="height" type="number" value="1024" min="256" max="2048" step="32">
+      </div>
+    </div>
+
+    <div class="row3">
+      <div>
+        <label for="steps">Steps</label>
+        <input id="steps" type="number" value="25" min="1" max="100">
+      </div>
+      <div>
+        <label for="cfg">CFG</label>
+        <input id="cfg" type="number" value="1" min="1" max="20" step="0.5">
+      </div>
+      <div>
+        <label for="batch">Batch</label>
+        <input id="batch" type="number" value="1" min="1" max="8">
+      </div>
+    </div>
+
+    <label for="seed">Seed <span class="hint">(blank = random)</span></label>
+    <input id="seed" type="number" placeholder="random" min="0">
+
+    <details>
+      <summary>Models</summary>
+      <label for="unet">Diffusion model (GGUF)</label>
+      <select id="unet">
+        {% for u in unets %}<option value="{{ u }}">{{ u }}</option>{% endfor %}
+      </select>
+      <label for="clip">Text encoder</label>
+      <select id="clip">
+        {% for c in clips %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+    </details>
+
+    <button type="submit" id="go">Generate</button>
+    <div id="msg"></div>
+  </form>
+
+  <section>
+    <div id="gallery" class="gallery">
+      <div class="empty">Generated images will appear here.</div>
+    </div>
+  </section>
+</main>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
