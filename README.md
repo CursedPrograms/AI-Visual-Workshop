@@ -32,6 +32,8 @@ photo editing, masked inpainting and uncropping with the GGUF quantizations of Q
 - **LoRA** — stack a style/behaviour LoRA on any mode, with a strength slider.
 - **Job queue** — press the button as often as you like; each job gets a card with its queue
   position, a live progress bar and its own **Cancel**. **use as photo** keeps editing a result.
+  Jobs are tracked on the server: close the tab and reopen it later, and running jobs and
+  finished results are still there.
 
 ## 📖 Overview
 
@@ -73,6 +75,20 @@ browser ──HTTP──▶ Flask (app.py) ──HTTP + websocket──▶ Comfy
 
 The Flask server is a thin client. **ComfyUI must be running** with the Qwen-Image 2.1 GGUF
 models installed (steps 1–2 below). Then start the server (step 3).
+
+## Requirements
+
+- **GPU:** NVIDIA with 6 GB VRAM or more (tested on an RTX 2060 6 GB).
+- **RAM:** 32 GB minimum, 64 GB recommended if you use both Qwen-Image 2.1 and Krea 2.
+- **Disk:** about 15 GB for the default Qwen files, plus about 14 GB for Krea 2.
+- **Windows page file: at least 32 GB.** ComfyUI reserves far more memory than it touches
+  (the models, plus up to ~26 GB of pinned memory), and Windows refuses an allocation once RAM +
+  page file is used up, even with plenty of RAM free. With an automatic page file (often only
+  ~11 GB), ComfyUI fails with `WinError 1455` or gets killed for low memory. Set it by hand:
+  *System Properties → Advanced → Performance Settings → Advanced → Virtual memory → Change*,
+  untick **Automatically manage paging file size**, pick a drive with room, choose **Custom
+  size**, set Initial **32768** MB and Maximum **49152** MB, click **Set**, then **OK**, and
+  restart.
 
 ## 1. Install ComfyUI-GGUF
 
@@ -186,8 +202,14 @@ per step:
 
 ```bash
 cd ComfyUI
-python main.py --disable-comfy-compiler --disable-dynamic-vram --disable-async-offload
+python main.py --disable-comfy-compiler --disable-dynamic-vram --disable-async-offload --cache-ram 6 16
 ```
+
+`--cache-ram 6 16` keeps both model families in RAM when the queue mixes them. By default
+ComfyUI drops every model the current job doesn't use (its "inactive" threshold is all of your
+RAM), so each Qwen ↔ Krea 2 switch re-read the other model from disk — about 2.5 min for Krea 2
+on a hard disk. With the flag, models are only dropped once free RAM falls below 16 GB. Qwen and
+Krea 2 together take about 28 GB, so lower the second number on a 32 GB machine.
 
 Add `--output-directory <this repo>/output` if you want images you make in ComfyUI's own UI to
 land in this repo too. Images made through the Flask server are always saved to `output/`.
@@ -250,6 +272,10 @@ prompt, photo or mask for the next job right away. (Browsers allow about 6 conne
 so keep it to 4–5 queued jobs per tab.) Waiting in the queue never times out; the time limit (30 min for
 Generate, 60 min for Edit / Inpaint / Uncrop, or the `timeout` API field in seconds) only starts
 when the job actually runs, and a job that runs past it is stopped.
+
+Jobs keep running if you close or reload the tab. The server remembers each browser's jobs
+(the last 200 across all browsers, until the Flask server restarts), so reopening the page brings back
+running jobs with their progress and the finished results.
 
 **Models & LoRA** (collapsed, under Seed) picks the GGUF quantization and text encoder for the
 current model, and a **LoRA** with its **Strength**. The LoRA list is whatever ComfyUI can see;
@@ -316,7 +342,7 @@ Raspberry Pi 5 (Flask UI, always on)  ──HTTP──▶  GPU PC (ComfyUI + Qwe
 On the **GPU PC**, start ComfyUI so it accepts LAN connections:
 
 ```bash
-python main.py --listen --lowvram        # --listen binds 0.0.0.0:8188
+python main.py --listen --lowvram --cache-ram 6 16   # --listen binds 0.0.0.0:8188
 ```
 
 On the **Pi** only Flask and its tiny dependencies are needed — no torch, no models:
@@ -354,6 +380,7 @@ curl -X POST http://127.0.0.1:5000/api/generate \
 | `lora` | *(none)* | LoRA filename as listed by `/api/loras` |
 | `lora_strength` | `1.0` | LoRA weight (negative values invert it) |
 | `job` | *(none)* | Any id you choose, to poll progress or cancel (see below) |
+| `client` | *(none)* | Any id you choose; `GET /api/jobs?client=` lists the jobs sent with it |
 | `timeout` | `1800` (`3600` for edit / inpaint) | Max seconds of *running* time; queue waiting doesn't count |
 
 Response: `{ "prompt_id", "seed", "images": [{ "filename", "url", "data" }] }` where `data` is a
@@ -385,9 +412,15 @@ to save results as `Qwen_image_2.1_gguf_uncrop_*.png`.
 **`POST /api/enhance`** — `{"prompt": "...", "mode": "generate"|"edit"|"inpaint"}` →
 `{"prompt": "<rewritten>", "model": "gemma3:4b-it-qat"}`; HTTP 502 if Ollama is unreachable.
 
-**`GET /api/progress/<job>`** — `{"state": "starting"|"queued"|"running", "value", "max",
-"prompt_id", "ahead"}` for a request sent with that `job` id (`value`/`max` are sampler steps;
-`ahead` is how many ComfyUI jobs run before it while it's queued).
+**`GET /api/progress/<job>`** — `{"id", "kind", "prompt", "client", "created", "state",
+"value", "max", "prompt_id", "ahead"}` for a request sent with that `job` id. `state` is
+`starting`, `queued`, `running`, `done` (with `result`: the response body minus the base64
+`data`), `failed` (with `error`) or `cancelled`. `value`/`max` are sampler steps, and `ahead` is
+how many ComfyUI jobs run before it while it's queued. `{"state": "unknown"}` if the server
+doesn't know the id, for example after a restart.
+
+**`GET /api/jobs?client=<id>`** — `{"jobs": [...]}`: every job sent with that `client` id, newest
+first, in the same shape as `/api/progress`. The web UI uses this to restore its gallery.
 
 **`POST /api/cancel/<job>`** — dequeue or interrupt that job; the original request then returns
 HTTP 409 `{"error": "Cancelled.", "cancelled": true}`.
@@ -464,8 +497,10 @@ spare VRAM.
 venv; run `pip install -r requirements.txt`. Generation still works without it.
 
 **`OSError: [WinError 1455] The paging file is too small`** when ComfyUI starts: Windows ran
-out of virtual memory while loading PyTorch. Close other heavy programs or enlarge the page
-file, then start ComfyUI again.
+out of virtual memory (RAM + page file) while loading PyTorch, or ComfyUI gets killed for low
+memory while plenty of RAM is free. Set the page file to at least 32 GB (see
+[Requirements](#requirements)) and close other programs that reserve a lot of memory, then start
+ComfyUI again.
 
 ## License
 

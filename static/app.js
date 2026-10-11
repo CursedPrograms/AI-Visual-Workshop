@@ -339,6 +339,18 @@ function resultCards(j) {
 }
 
 // ---- job cards: every submit queues a job; ComfyUI runs them one after another ----
+// The server keeps each browser's jobs (tagged with this id), so reopening the page
+// brings back running jobs and finished results.
+const clientId = (() => {
+  const fresh = Date.now().toString(36) + Math.random().toString(36).slice(2);
+  try {
+    let id = localStorage.getItem("clientId");
+    if (!id) localStorage.setItem("clientId", (id = fresh));
+    return id;
+  } catch { return fresh; }
+})();
+const FINISHED = ["done", "failed", "cancelled"];
+
 function jobCard(kind, prompt) {
   const card = document.createElement("div");
   card.className = "card job";
@@ -378,7 +390,7 @@ function noteCard(text, isError) {
 
 async function buildRequest(prompt, job) {
   const common = {
-    prompt, job,
+    prompt, job, client: clientId,
     negative: $("negative").value,
     steps: +$("steps").value, cfg: +$("cfg").value,
     seed: $("seed").value === "" ? null : +$("seed").value,
@@ -436,11 +448,35 @@ $("form").addEventListener("submit", async (e) => {
   const busy = MODES[mode].busy;
   const request = await buildRequest(prompt, job);
 
+  const card = jobCard(MODES[mode].button, prompt);
+  addToGallery(card);
+  const stop = trackJob(card, job, busy);
+
+  try {
+    const r = await fetch(...request);
+    const j = await r.json();
+    stop();
+    if (j.cancelled) return card.replaceWith(noteCard("Cancelled: " + prompt));
+    if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+    if (!j.images.length) throw new Error("ComfyUI finished without an image (check its console).");
+    card.replaceWith(...resultCards(j));
+  } catch (err) {
+    stop();
+    card.replaceWith(noteCard("Failed: " + err.message, true));
+  }
+});
+
+function addToGallery(card) {
   const empty = gallery.querySelector(".empty");
   if (empty) empty.remove();
-  const card = jobCard(MODES[mode].button, prompt);
   gallery.prepend(card);
+}
 
+// Wire a job card's Cancel button and poll its progress. Normally the caller waits on
+// the request itself and swaps the card; for a job `restored` from the server, the
+// poll swaps in the result once the server records the end.
+// Returns a function that stops the polling.
+function trackJob(card, job, busy, restored = false) {
   const cancel = card.querySelector(".job-cancel");
   cancel.addEventListener("click", async () => {
     cancel.disabled = true; cancel.textContent = "Cancelling…";
@@ -454,19 +490,41 @@ $("form").addEventListener("submit", async (e) => {
   });
 
   const poll = setInterval(async () => {
-    try { showProgress(card, busy, await (await fetch("/api/progress/" + job)).json()); } catch {}
+    try {
+      const p = await (await fetch("/api/progress/" + job)).json();
+      if (restored && (FINISHED.includes(p.state) || p.state === "unknown")) {
+        clearInterval(poll);
+        return card.replaceWith(...finishedCards(p));
+      }
+      showProgress(card, busy, p);
+    } catch {}
   }, 1000);
+  return () => clearInterval(poll);
+}
 
+// Cards for a job the server has finished (or forgotten, e.g. after a restart).
+function finishedCards(p) {
+  if (p.state === "done" && p.result.images.length)
+    return resultCards({ ...p.result, images: p.result.images.map((img) => ({ ...img, data: img.url })) });
+  if (p.state === "cancelled") return [noteCard("Cancelled: " + p.prompt)];
+  if (p.state === "unknown") return [noteCard("Lost track of this job (the server restarted).", true)];
+  return [noteCard("Failed: " + (p.error || "ComfyUI finished without an image (check its console)."), true)];
+}
+
+// Rebuild the gallery from the jobs this browser sent before the page was (re)opened.
+(async () => {
   try {
-    const r = await fetch(...request);
-    const j = await r.json();
-    if (j.cancelled) return card.replaceWith(noteCard("Cancelled: " + prompt));
-    if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
-    if (!j.images.length) throw new Error("ComfyUI finished without an image (check its console).");
-    card.replaceWith(...resultCards(j));
-  } catch (err) {
-    card.replaceWith(noteCard("Failed: " + err.message, true));
-  } finally {
-    clearInterval(poll);
-  }
-});
+    const { jobs } = await (await fetch("/api/jobs?client=" + encodeURIComponent(clientId))).json();
+    for (const p of jobs.reverse()) {  // oldest first, so the newest ends up on top
+      if (FINISHED.includes(p.state)) {
+        for (const card of finishedCards(p).reverse()) addToGallery(card);
+      } else {
+        const m = MODES[p.kind] || MODES.generate;
+        const card = jobCard(m.button, p.prompt);
+        addToGallery(card);
+        showProgress(card, m.busy, p);
+        trackJob(card, p.id, m.busy, true);
+      }
+    }
+  } catch {}
+})();

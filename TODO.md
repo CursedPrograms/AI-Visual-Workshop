@@ -74,3 +74,17 @@ Krea 2 Turbo (12B DiT, June 2026) as an alternative text-to-image model, 8 steps
 - **Inpainting** = precise, mask-based. **Edit** (done) = no mask, instruction-driven; both
   use the base model.
 - Do all of this **after** the base text-to-image path is confirmed working end-to-end.
+
+## Queue and jobs
+
+- [x] **Model reloading in the queue:** within Qwen (t2i/edit/inpaint/LoRA) nothing is re-read
+      from disk; each job only swaps text encoder → UNet → VAE onto the 6 GB GPU (normal). The
+      real reload was **switching Qwen ↔ Krea 2**: ComfyUI's default RAM-pressure cache evicts
+      every model the current job doesn't use (inactive threshold = all RAM), costing ~154 s per
+      switch back to Krea on the F: disk. Fix: start ComfyUI with `--cache-ram 6 16` (README).
+      Verified: Qwen/Krea alternating, each loaded from disk once, then 17–27 s per job.
+- [x] **Timeout:** live once Flask restarted (queue time doesn't count, only running time).
+- [x] **Jobs that survive closing the window:** jobs are tracked on the server (`JOBS` in
+      `app.py`, tagged with a per-browser `client` id from localStorage); `GET /api/jobs` lets
+      the page rebuild its gallery and resume progress on reopen.
+- [ ] **Project name:** decide at the end.

@@ -11,6 +11,7 @@ over HTTP, so point COMFY_SERVER at it if it is not on the default port.
 import base64
 import json
 import os
+import time
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
@@ -64,18 +65,38 @@ MODELS = {
 
 app = Flask(__name__)
 
-# Live progress per browser job id: {"state", "value", "max"}; polled by the UI.
-PROGRESS = {}
+# Every job submitted with a `job` id, by id: kind, prompt, the browser that sent it
+# (`client`), "state" (starting/queued/running/done/failed/cancelled), step progress and
+# the result or error. Kept on the server so a page reopened later can pick its jobs up.
+JOBS = {}
+MAX_JOBS = 200
 
 
-def _tracker(job):
-    """Progress callback for comfy_client that records events under `job`."""
-    if not job:
-        return None
-    while len(PROGRESS) >= 100:  # finished jobs are never polled again; drop the oldest
-        PROGRESS.pop(next(iter(PROGRESS)))
-    PROGRESS[job] = {"state": "starting"}
-    return lambda event: PROGRESS.__setitem__(job, event)
+def _run_job(kind, prompt, job, client, call):
+    """Run call(on_progress) for one job, record how it ends under JOBS[job]
+    and turn it into the endpoint's response."""
+    rec = None
+    if job:
+        while len(JOBS) >= MAX_JOBS:  # drop the oldest
+            JOBS.pop(next(iter(JOBS)))
+        rec = JOBS[job] = {"id": job, "client": client or "", "kind": kind,
+                           "prompt": prompt, "created": time.time(), "state": "starting"}
+    end = rec.update if rec else lambda **_: None
+    try:
+        result = call((lambda event: rec.update({"value": None, "max": None, **event})) if rec else None)
+    except comfy_client.Cancelled:
+        end(state="cancelled")
+        return jsonify(error="Cancelled.", cancelled=True), 409
+    except comfy_client.ComfyError as exc:
+        end(state="failed", error=str(exc))
+        return jsonify(error=str(exc)), 502
+    except (ValueError, TypeError) as exc:
+        end(state="failed", error=f"Bad parameter: {exc}")
+        return jsonify(error=f"Bad parameter: {exc}"), 400
+    body = _save(result)
+    end(state="done", result=dict(body, images=[
+        {k: v for k, v in img.items() if k != "data"} for img in body["images"]]))
+    return jsonify(**body)
 
 
 @app.route("/")
@@ -111,8 +132,8 @@ def generate():
     if model not in MODELS:
         return jsonify(error=f"Unknown model {model!r}."), 400
 
-    try:
-        result = comfy_client.generate(
+    return _run_job("generate", prompt, data.get("job"), data.get("client"), lambda on_progress:
+        comfy_client.generate(
             COMFY_SERVER,
             prompt=prompt,
             model=model,
@@ -128,16 +149,8 @@ def generate():
             lora=data.get("lora") or None,
             lora_strength=data.get("lora_strength", 1.0),
             timeout=int(data.get("timeout", 1800)),
-            on_progress=_tracker(data.get("job")),
-        )
-    except comfy_client.Cancelled:
-        return jsonify(error="Cancelled.", cancelled=True), 409
-    except comfy_client.ComfyError as exc:
-        return jsonify(error=str(exc)), 502
-    except (ValueError, TypeError) as exc:
-        return jsonify(error=f"Bad parameter: {exc}"), 400
-
-    return jsonify(**_save(result))
+            on_progress=on_progress,
+        ))
 
 
 @app.route("/api/edit", methods=["POST"])
@@ -151,8 +164,8 @@ def edit():
         return jsonify(error="An edit instruction is required."), 400
     f = request.form
 
-    try:
-        result = comfy_client.edit(
+    return _run_job("edit", prompt, f.get("job"), f.get("client"), lambda on_progress:
+        comfy_client.edit(
             COMFY_SERVER,
             Path(upload.filename).name,
             upload.read(),
@@ -167,16 +180,8 @@ def edit():
             lora=f.get("lora") or None,
             lora_strength=f.get("lora_strength", 1.0),
             timeout=int(f.get("timeout", 3600)),
-            on_progress=_tracker(f.get("job")),
-        )
-    except comfy_client.Cancelled:
-        return jsonify(error="Cancelled.", cancelled=True), 409
-    except comfy_client.ComfyError as exc:
-        return jsonify(error=str(exc)), 502
-    except (ValueError, TypeError) as exc:
-        return jsonify(error=f"Bad parameter: {exc}"), 400
-
-    return jsonify(**_save(result))
+            on_progress=on_progress,
+        ))
 
 
 @app.route("/api/inpaint", methods=["POST"])
@@ -193,8 +198,9 @@ def inpaint():
         return jsonify(error="A prompt is required."), 400
     f = request.form
 
-    try:
-        result = comfy_client.inpaint(
+    kind = "uncrop" if f.get("kind") == "uncrop" else "inpaint"
+    return _run_job(kind, prompt, f.get("job"), f.get("client"), lambda on_progress:
+        comfy_client.inpaint(
             COMFY_SERVER,
             Path(upload.filename).name,
             upload.read(),
@@ -206,24 +212,15 @@ def inpaint():
             steps=f.get("steps", 25),
             cfg=f.get("cfg", 1.0),
             denoise=f.get("denoise", 1.0),
-            prefix=("Qwen_image_2.1_gguf_uncrop" if f.get("kind") == "uncrop"
-                    else "Qwen_image_2.1_gguf_inpaint"),
+            prefix=f"Qwen_image_2.1_gguf_{kind}",
             seed=f.get("seed") or None,
             unet=f.get("unet") or None,
             clip=f.get("clip") or None,
             lora=f.get("lora") or None,
             lora_strength=f.get("lora_strength", 1.0),
             timeout=int(f.get("timeout", 3600)),
-            on_progress=_tracker(f.get("job")),
-        )
-    except comfy_client.Cancelled:
-        return jsonify(error="Cancelled.", cancelled=True), 409
-    except comfy_client.ComfyError as exc:
-        return jsonify(error=str(exc)), 502
-    except (ValueError, TypeError) as exc:
-        return jsonify(error=f"Bad parameter: {exc}"), 400
-
-    return jsonify(**_save(result))
+            on_progress=on_progress,
+        ))
 
 
 @app.route("/api/enhance", methods=["POST"])
@@ -254,21 +251,33 @@ def _save(result):
     return dict(prompt_id=result["prompt_id"], seed=result["seed"], images=images)
 
 
-@app.route("/api/progress/<job>")
-def progress(job):
-    p = dict(PROGRESS.get(job, {"state": "unknown"}))
+@app.route("/api/jobs")
+def jobs():
+    """Jobs sent by one browser (`?client=`), newest first, including finished ones."""
+    client = request.args.get("client", "")
+    return jsonify(jobs=[_job_view(j) for j in reversed(list(JOBS.values()))
+                         if j["client"] == client])
+
+
+def _job_view(rec):
+    p = dict(rec)
     if p.get("state") == "queued" and p.get("prompt_id"):
         try:
             p["ahead"] = comfy_client.jobs_ahead(COMFY_SERVER, p["prompt_id"])
         except Exception:
             pass
-    return jsonify(p)
+    return p
+
+
+@app.route("/api/progress/<job>")
+def progress(job):
+    return jsonify(_job_view(JOBS.get(job, {"state": "unknown"})))
 
 
 @app.route("/api/cancel/<job>", methods=["POST"])
 def cancel(job):
     """Cancel a job started from this UI: dequeue it or interrupt it if running."""
-    prompt_id = PROGRESS.get(job, {}).get("prompt_id")
+    prompt_id = JOBS.get(job, {}).get("prompt_id")
     if not prompt_id:
         return jsonify(error="That job isn't queued yet (or already finished)."), 404
     try:
