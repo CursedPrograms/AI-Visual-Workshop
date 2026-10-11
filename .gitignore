@@ -189,3 +189,6 @@ models/
 *.ckpt
 *.pt
 *.pth
+
+# Your own photos used for Edit / Inpaint
+input/

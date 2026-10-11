@@ -15,13 +15,83 @@
 
 <main>
   <form class="panel" id="form">
-    <label for="prompt">Prompt</label>
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab active" data-mode="generate">Generate</button>
+      <button type="button" class="tab" data-mode="edit">Edit photo</button>
+      <button type="button" class="tab" data-mode="inpaint">Inpaint</button>
+      <button type="button" class="tab" data-mode="uncrop">Uncrop</button>
+    </div>
+
+    <div data-modes="edit inpaint uncrop" hidden>
+      <label for="image">Photo</label>
+      <input id="image" type="file" accept="image/*">
+      <div class="photo-row" id="photoRow" hidden>
+        <span class="hint" id="photoInfo"></span>
+        <button type="button" class="small" id="prevPhoto" hidden>&larr; Previous photo</button>
+      </div>
+      <img id="preview" class="preview" alt="" data-modes="edit" hidden>
+    </div>
+
+    <div data-modes="inpaint" hidden>
+      <div class="canvas-wrap" id="canvasWrap" hidden>
+        <canvas id="photoCanvas"></canvas>
+        <canvas id="maskOverlay"></canvas>
+      </div>
+      <div class="brush-row">
+        <label for="brush">Brush</label>
+        <input id="brush" type="range" min="5" max="150" value="40">
+        <button type="button" class="small" id="eraseToggle">Erase</button>
+        <button type="button" class="small" id="clearMask">Clear</button>
+      </div>
+      <div class="hint">Paint over the area to regenerate; everything else is kept exactly.</div>
+    </div>
+
+    <div data-modes="uncrop" hidden>
+      <canvas id="uncropCanvas" class="uncrop-canvas" hidden></canvas>
+      <label for="aspect">Expand to</label>
+      <select id="aspect">
+        <option value="">Custom (sliders)</option>
+        <option value="1">1:1 square</option>
+        <option value="1.3333">4:3</option>
+        <option value="0.75">3:4</option>
+        <option value="1.5">3:2</option>
+        <option value="0.6667">2:3</option>
+        <option value="1.7778">16:9</option>
+        <option value="0.5625">9:16</option>
+        <option value="2.3333">21:9</option>
+        <option value="zoom">Zoom out 1.5&times;</option>
+        <option value="zoom2">Zoom out 2&times;</option>
+      </select>
+      <div class="pad-grid">
+        <label>Left <input id="padL" type="range" min="0" max="100" value="0"><span id="padLv">0%</span></label>
+        <label>Right <input id="padR" type="range" min="0" max="100" value="0"><span id="padRv">0%</span></label>
+        <label>Top <input id="padT" type="range" min="0" max="100" value="0"><span id="padTv">0%</span></label>
+        <label>Bottom <input id="padB" type="range" min="0" max="100" value="0"><span id="padBv">0%</span></label>
+      </div>
+      <div class="hint">Extra canvas on each side, as % of the photo's width / height. The original
+        pixels are kept exactly; only the new border is generated.</div>
+    </div>
+
+    <div data-modes="generate">
+      <label for="model">Model</label>
+      <select id="model">
+        {% for key, m in models.items() %}<option value="{{ key }}">{{ m.label }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div class="label-row">
+      <label for="prompt" id="promptLabel">Prompt</label>
+      <button type="button" class="small" id="undoEnhance" hidden>Undo</button>
+      <button type="button" class="small" id="enhance" title="Rewrite the prompt with the local LLM (Ollama)">&#10024; Enhance</button>
+    </div>
     <textarea id="prompt" rows="4" placeholder="a watercolour lighthouse on a rocky coast at dusk">{{ config.Example or "" }}</textarea>
 
-    <label for="negative">Negative prompt <span class="hint">(only used when CFG &gt; 1)</span></label>
-    <textarea id="negative" rows="2" placeholder="blurry, low quality"></textarea>
+    <div id="negativeBox">
+      <label for="negative">Negative prompt <span class="hint">(only used when CFG &gt; 1)</span></label>
+      <textarea id="negative" rows="2" placeholder="blurry, low quality"></textarea>
+    </div>
 
-    <div class="row">
+    <div class="row" data-modes="generate">
       <div>
         <label for="width">Width</label>
         <input id="width" type="number" value="1024" min="256" max="2048" step="32">
@@ -30,6 +100,11 @@
         <label for="height">Height</label>
         <input id="height" type="number" value="1024" min="256" max="2048" step="32">
       </div>
+    </div>
+
+    <div data-modes="edit inpaint uncrop" hidden>
+      <label for="resolution">Resolution <span class="hint">(output keeps the photo's aspect ratio)</span></label>
+      <input id="resolution" type="number" value="1024" min="256" max="2048" step="32">
     </div>
 
     <div class="row3">
@@ -41,9 +116,13 @@
         <label for="cfg">CFG</label>
         <input id="cfg" type="number" value="1" min="1" max="20" step="0.5">
       </div>
-      <div>
+      <div data-modes="generate">
         <label for="batch">Batch</label>
         <input id="batch" type="number" value="1" min="1" max="8">
+      </div>
+      <div data-modes="inpaint" hidden>
+        <label for="denoise">Denoise</label>
+        <input id="denoise" type="number" value="1" min="0.1" max="1" step="0.05">
       </div>
     </div>
 
@@ -51,16 +130,24 @@
     <input id="seed" type="number" placeholder="random" min="0">
 
     <details>
-      <summary>Models</summary>
+      <summary>Models &amp; LoRA</summary>
       <label for="unet">Diffusion model (GGUF)</label>
-      <select id="unet">
-        {% for u in unets %}<option value="{{ u }}">{{ u }}</option>{% endfor %}
-      </select>
+      <select id="unet"></select>
       <label for="clip">Text encoder</label>
-      <select id="clip">
-        {% for c in clips %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
-      </select>
+      <select id="clip"></select>
+      <div class="row">
+        <div>
+          <label for="lora">LoRA</label>
+          <select id="lora"><option value="">None</option></select>
+        </div>
+        <div>
+          <label for="loraStrength">Strength</label>
+          <input id="loraStrength" type="number" value="1" min="-2" max="2" step="0.05">
+        </div>
+      </div>
+      <div class="hint">LoRAs come from ComfyUI's <code>models/loras</code> (and extra_model_paths). Use one made for the selected model.</div>
     </details>
+    <script id="modelsData" type="application/json">{{ models|tojson }}</script>
 
     <button type="submit" id="go">Generate</button>
     <div id="msg"></div>

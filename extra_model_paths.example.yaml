@@ -8,3 +8,15 @@ qwen_image_gguf:
     text_encoders: text_encoders
     clip: text_encoders
     vae: vae
+    loras: loras
+
+# Optional: Krea 2 Turbo (text-to-image only). Point base_path at wherever you keep
+# its files, laid out as diffusion_models/ text_encoders/ vae/ loras/.
+krea2:
+    base_path: F:/AIModels/krea2
+    diffusion_models: diffusion_models
+    unet: diffusion_models
+    text_encoders: text_encoders
+    clip: text_encoders
+    vae: vae
+    loras: loras

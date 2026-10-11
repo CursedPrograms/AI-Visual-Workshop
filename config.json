@@ -1,7 +1,7 @@
 {
   "Config": {
     "AppName": "Qwen-Image 2.1 GGUF",
-    "Description": "A Flask web UI and JSON API for text-to-image generation with the GGUF quantizations of Qwen-Image 2.1, driving a running ComfyUI backend.",
+    "Description": "A Flask web UI and JSON API for text-to-image generation (Qwen-Image 2.1 or Krea 2 Turbo), photo editing, masked inpainting and uncropping with GGUF models, driving a running ComfyUI backend.",
     "Example": "a watercolour lighthouse on a rocky coast at dusk",
     "Backend": "ComfyUI (http://127.0.0.1:8188)",
     "Functionalities": [
@@ -14,8 +14,32 @@
         "Description": "Pick any published GGUF quantization (Q4_0 through BF16) and either text encoder (int8 or bf16) per request without editing the workflow."
       },
       {
+        "Name": "Photo editing",
+        "Description": "Upload a photo and describe the change; the base model edits it natively using the photo as a reference image (POST /api/edit)."
+      },
+      {
+        "Name": "Inpainting",
+        "Description": "Paint a mask over part of a photo and regenerate only that area; pixels outside the mask are kept exactly (POST /api/inpaint)."
+      },
+      {
+        "Name": "Uncrop",
+        "Description": "Extend a photo beyond its borders to a chosen aspect ratio or zoom-out; only the new border is generated and the original pixels are kept (POST /api/inpaint with a padded image)."
+      },
+      {
+        "Name": "Prompt enhancer",
+        "Description": "Rewrite a short prompt into a detailed one with a local LLM served by Ollama (POST /api/enhance)."
+      },
+      {
+        "Name": "Job queue, progress and cancel",
+        "Description": "Queue as many jobs as you like; each shows its queue position, live sampler-step progress and its own Cancel (GET /api/progress, POST /api/cancel)."
+      },
+      {
         "Name": "JSON API",
-        "Description": "POST /api/generate with a JSON body to script generation; GET /api/health reports whether the ComfyUI backend is reachable."
+        "Description": "POST /api/generate, /api/edit and /api/inpaint to script generation; GET /api/health reports whether the ComfyUI backend is reachable."
+      },
+      {
+        "Name": "LoRA",
+        "Description": "Stack a LoRA with adjustable strength on any mode (GET /api/loras lists what ComfyUI can see)."
       }
     ]
   }
