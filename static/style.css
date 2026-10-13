@@ -319,3 +319,12 @@ main.models-mode > .panel, main.models-mode > .gallery-wrap { display: none; }
   .rsel-list { border-right: 0; border-bottom: 1px solid var(--line); max-height: 220px; }
   .rsel-info { min-height: 0; }
 }
+
+/* ---- Gallery page ---- */
+.gallery-filters { display: inline-flex; gap: 4px; padding: 4px; margin: 6px 0 16px; background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; }
+.gallery-filters .seg-btn { width: auto; padding: 7px 16px; }
+#allGallery .card video { cursor: default; }
+.g-label { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+.g-label b { color: var(--text); font-weight: 650; font-size: 12.5px; }
+.g-label small { font: 11px var(--mono); color: var(--muted); }
+.more-btn { display: block; margin: 18px auto 0; padding: 9px 22px; }

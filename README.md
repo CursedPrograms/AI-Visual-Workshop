@@ -47,6 +47,8 @@ optional Krea 2 Turbo for text-to-image, and optional Wan 2.2 TI2V-5B for video.
 - **Video** — bring a photo to life, or make a video from a prompt alone, with **Wan 2.2**
   TI2V-5B (optional): 2–5 seconds at 24 fps, sized to the photo's shape. A second video model,
   **Wan 2.2 I2V-A14B (test)**, is tuned for faces and identity (photo to video only).
+- **Gallery** — everything in `output/` (images and videos), newest first, labelled by what
+  made it, with *use as photo*, *upscale*, *smooth* and *download*.
 - **Models page** — see which models are installed, and download the missing or optional ones
   (resumable) without leaving the app.
 - **✨ Enhance** — rewrite a short prompt into a detailed one with a local LLM (Ollama, optional).
@@ -592,6 +594,10 @@ file (the first frame; without it, text-to-video), plus optional `width` / `heig
 curl -X POST http://127.0.0.1:7870/api/video \
   -F image=@photo.png -F "prompt=she turns toward the camera and smiles" -F frames=81
 ```
+
+**`GET /api/gallery`** — everything in `output/`, newest first: `{"items": [{"filename", "url",
+"video", "kind", "size", "mtime", "prompt"?, "seed"?}], "total"}`; `?type=image|video`, `?offset=`,
+`?limit=` (60, max 200). `kind` comes from the filename prefix (Qwen-Image, Edit, Relight, Face video, …).
 
 **`GET /api/models`** — every model in the catalog with `installed`, per-file `state`
 (`installed` / `partial` / `writing` / `missing`), sizes, license and any download `progress`.

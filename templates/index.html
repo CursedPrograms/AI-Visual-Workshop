@@ -17,6 +17,7 @@
   <nav class="toplinks">
     <div class="viewswitch" role="tablist">
       <button type="button" class="view-btn active" data-view="studio">Studio</button>
+      <button type="button" class="view-btn" data-view="gallery">Gallery</button>
       <button type="button" class="view-btn" data-view="models">Models</button>
     </div>
     <a href="https://cursedprograms.github.io/AI-Visual-Workshop/" target="_blank" rel="noopener" title="The project page on GitHub Pages">Project page &#8599;</a>
@@ -25,6 +26,20 @@
 </header>
 
 <main id="layout">
+  <section class="models-view" id="galleryView" hidden>
+    <div class="models-head">
+      <h2>Gallery</h2>
+      <p class="hint" id="galleryInfo">Everything in <code>output/</code>, newest first.</p>
+    </div>
+    <div class="gallery-filters" id="galleryFilters">
+      <button type="button" class="seg-btn active" data-type="">All</button>
+      <button type="button" class="seg-btn" data-type="image">Images</button>
+      <button type="button" class="seg-btn" data-type="video">Videos</button>
+    </div>
+    <div id="allGallery" class="gallery"></div>
+    <button type="button" class="small more-btn" id="galleryMore" hidden>Load more</button>
+  </section>
+
   <section class="models-view" id="modelsView" hidden>
     <div class="models-head">
       <h2>Models</h2>

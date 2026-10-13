@@ -123,7 +123,7 @@ Krea 2 Turbo (12B DiT, June 2026) as an alternative text-to-image model, 8 steps
 ## Next tools
 
 - [ ] **Restyle** (img2img: photo → oil painting, anime, …)
-- [ ] **Gallery** of everything in `output/`
+- [x] **Gallery** of everything in `output/` (Studio · Gallery · Models in the header; `GET /api/gallery`)
 - [ ] **Depth / edges** control
 
 ## UI

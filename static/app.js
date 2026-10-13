@@ -831,14 +831,16 @@ function finishedCards(p) {
 // ---- views: Studio (tools + gallery) and Models (what's installed, downloads) ----
 function setView(view) {
   document.querySelectorAll(".view-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
-  $("layout").classList.toggle("models-mode", view === "models");
+  $("layout").classList.toggle("models-mode", view !== "studio");
   $("modelsView").hidden = view !== "models";
+  $("galleryView").hidden = view !== "gallery";
   if (view === "models") loadModels();
   else clearTimeout(modelsTimer);
+  if (view === "gallery") loadGallery(true);
 }
 document.querySelectorAll(".view-btn").forEach((b) => b.addEventListener("click", () => {
   setView(b.dataset.view);
-  window.history.replaceState(null, "", b.dataset.view === "models" ? "#models" : "#" + mode);
+  window.history.replaceState(null, "", b.dataset.view === "studio" ? "#" + mode : "#" + b.dataset.view);
 }));
 document.querySelectorAll("[data-view-link]").forEach((a) => a.addEventListener("click", (e) => {
   e.preventDefault();
@@ -929,7 +931,81 @@ function modelCard(m) {
   }
   return card;
 }
-if (location.hash === "#models") setView("models");
+
+// ---- Gallery: everything in output/, newest first ----
+let galleryType = "", galleryOffset = 0;
+const GALLERY_PAGE = 60;
+
+async function loadGallery(reset) {
+  if (reset) { galleryOffset = 0; $("allGallery").innerHTML = ""; }
+  let j;
+  try {
+    j = await (await fetch(`/api/gallery?type=${galleryType}&offset=${galleryOffset}&limit=${GALLERY_PAGE}`)).json();
+  } catch { $("galleryInfo").textContent = "Server unreachable."; return; }
+  for (const it of j.items) $("allGallery").append(galleryCard(it));
+  galleryOffset += j.items.length;
+  $("galleryInfo").innerHTML = `${j.total} file${j.total === 1 ? "" : "s"} in <code>output/</code>, newest first.`;
+  $("galleryMore").hidden = galleryOffset >= j.total;
+  if (!j.total) $("allGallery").innerHTML = '<div class="empty"><p>Nothing in output/ yet.</p></div>';
+}
+
+function galleryCard(it) {
+  const card = document.createElement("div");
+  card.className = "card";
+  const media = document.createElement(it.video ? "video" : "img");
+  media.src = it.video ? it.url + "#t=0.1" : it.url;  // #t: browsers then draw that frame as a thumbnail
+  if (it.video) Object.assign(media, { controls: true, loop: true, muted: true, preload: "metadata", playsInline: true });
+  else { media.alt = it.kind; media.loading = "lazy"; media.addEventListener("click", () => openLightbox(it.url)); }
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  const label = document.createElement("span");
+  label.className = "g-label";
+  label.innerHTML = `<b></b><small></small>`;
+  label.querySelector("b").textContent = it.kind;
+  label.querySelector("small").textContent = new Date(it.mtime * 1000).toLocaleString([], { dateStyle: "short", timeStyle: "short" });
+  if (it.prompt) label.title = it.prompt + (it.seed != null ? `  (seed ${it.seed})` : "");
+  const actions = document.createElement("span");
+  actions.className = "actions";
+  const link = (text, title, fn) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "link"; b.textContent = text; b.title = title;
+    b.addEventListener("click", fn);
+    actions.append(b);
+  };
+  const blob = async () => (await fetch(it.url)).blob();
+  if (it.video) {
+    link("smooth", "Double the frame rate with RIFE", async () => {
+      const job = newJobId(); setView("studio");
+      runJob(job, "videofx", `${it.filename} ×2 smooth`, videoFxRequest(await blob(), it.filename, job, "smooth", 2));
+    });
+  } else {
+    link("use as photo", "Open it in the Studio as the working photo", async () => {
+      const b = await blob(); setView("studio");
+      if (mode === "generate") setMode("edit");
+      loadPhoto(b, it.filename, { remember: true });
+    });
+    link("upscale", "Enlarge 2× (Fast)", async () => {
+      const job = newJobId(), form = new FormData();
+      form.append("image", await blob(), it.filename);
+      form.append("scale", 2); form.append("job", job); form.append("client", clientId);
+      setView("studio");
+      runJob(job, "upscale", `${it.filename} ×2`, ["/api/upscale", { method: "POST", body: form }]);
+    });
+  }
+  const dl = document.createElement("a");
+  dl.href = it.url; dl.download = it.filename; dl.textContent = "download";
+  actions.append(dl);
+  meta.append(label, actions);
+  card.append(media, meta);
+  return card;
+}
+
+document.querySelectorAll("#galleryFilters .seg-btn").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll("#galleryFilters .seg-btn").forEach((x) => x.classList.toggle("active", x === b));
+  galleryType = b.dataset.type;
+  loadGallery(true);
+}));
+$("galleryMore").addEventListener("click", () => loadGallery(false));
 
 // ---- model pickers with an info card: hover (or arrow to) a model to read about it ----
 function richSelect(select, infoFor) {
@@ -1027,3 +1103,6 @@ function richSelect(select, infoFor) {
 }
 richSelect($("model"), (v) => FAMILIES[v]);
 richSelect($("videoModel"), (v) => FAMILIES[v]);
+
+// Open the page named in the URL (#models / #gallery) once everything above exists.
+if (location.hash === "#models" || location.hash === "#gallery") setView(location.hash.slice(1));

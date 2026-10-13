@@ -43,7 +43,7 @@ browser ─▶│  Generate │ Edit │ Inpaint │ Outpaint │ Upscale │ Re
 | 9 | **Video** (text-to-video, image-to-video) | Wan 2.2 TI2V-5B; I2V-A14B faces (test) | ✅ Built |
 | 10 | **LoRA** stacking | any | 📋 TODO |
 | 11 | **Models** manager (download, switch quant/encoder/LoRA) | — | ✅ Built (Models page) |
-| 12 | **Gallery / history** (browse, re-run, delete outputs) | — | ⬜ Planned |
+| 12 | **Gallery / history** (browse, reuse outputs) | — | ✅ Built (Gallery page) |
 
 (Per-module build steps live in `TODO.md`.)
 

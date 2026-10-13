@@ -266,6 +266,8 @@ def _fetch(model_id, f, rec):
     joined.replace(path)
     for seg, _, _ in segments:
         seg.unlink()
+    if legacy.exists():  # an old single-stream fragment too big to reuse as part 0
+        legacy.unlink()
     rec["done"] = base + f["size"]
 
 

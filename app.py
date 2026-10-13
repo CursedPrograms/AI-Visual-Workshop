@@ -606,6 +606,58 @@ def cancel(job):
     return jsonify(cancelled=prompt_id)
 
 
+# What made a file in output/, from its filename prefix (the SaveImage/SaveVideo prefixes
+# in the workflows). Longest prefix first, so "..._edit" wins over the plain t2i one.
+OUTPUT_KINDS = [
+    ("Wan2.2_i2v_face_test", "Face video (test)"), ("Wan2.2_ti2v", "Video"),
+    ("Qwen_image_2.1_gguf_edit", "Edit"), ("Qwen_image_2.1_gguf_inpaint", "Inpaint"),
+    ("Qwen_image_2.1_gguf_uncrop", "Uncrop"), ("Qwen_image_2.1_gguf_pose", "Pose"),
+    ("Qwen_image_2.1_gguf_background", "Background"), ("Qwen_image_2.1_gguf_relight", "Relight"),
+    ("Qwen_image_2.1_gguf", "Qwen-Image"), ("Krea2_turbo_gguf", "Krea 2"),
+    ("Chroma1_HD_gguf", "Chroma"), ("SDXL", "SDXL"), ("pose_map", "Pose map"),
+    ("upscale", "Upscale"), ("cutout", "Cut out"), ("background_removed", "Video FX"),
+    ("smooth", "Smooth"),
+]
+IMAGE_TYPES = (".png", ".jpg", ".jpeg", ".webp")
+
+
+def _output_kind(name):
+    for prefix, kind in OUTPUT_KINDS:
+        if name.startswith(prefix):
+            return kind
+    return "Other"
+
+
+@app.route("/api/gallery")
+def gallery():
+    """Everything in output/ (images and videos), newest first: {"items": [{"filename",
+    "url", "video", "kind", "size", "mtime", "prompt"?, "seed"?}], "total"}.
+    `?type=image|video`, `?offset=`, `?limit=` (default 60) page through it."""
+    want = request.args.get("type", "")
+    offset = max(0, int(request.args.get("offset", 0)))
+    limit = min(200, max(1, int(request.args.get("limit", 60))))
+    # prompt / seed from the job records that produced each file
+    known = {}
+    for rec in JOBS.values():
+        for img in (rec.get("result") or {}).get("images", []):
+            known[img["filename"]] = {"prompt": rec.get("prompt"), "seed": rec["result"].get("seed")}
+    files = []
+    for path in OUTPUT_DIR.rglob("*"):
+        name = path.name.lower()
+        video = name.endswith(VIDEO_TYPES)
+        if not path.is_file() or not (video or name.endswith(IMAGE_TYPES)):
+            continue
+        if want and want != ("video" if video else "image"):
+            continue
+        st = path.stat()
+        rel = path.relative_to(OUTPUT_DIR).as_posix()
+        files.append(dict({"filename": path.name, "url": f"/output/{rel}", "video": video,
+                           "kind": _output_kind(path.name), "size": st.st_size, "mtime": st.st_mtime},
+                          **known.get(path.name, {})))
+    files.sort(key=lambda f: f["mtime"], reverse=True)
+    return jsonify(items=files[offset:offset + limit], total=len(files))
+
+
 @app.route("/output/<path:name>")
 def output(name):
     return send_from_directory(OUTPUT_DIR, name)
