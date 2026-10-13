@@ -11,5 +11,5 @@ else
     source "$VENV_DIR/bin/activate"
 fi
 
-echo "Starting Qwen-Image 2.1 GGUF server on http://127.0.0.1:5000"
+echo "Starting AI Visual Workshop on http://127.0.0.1:5000"
 python app.py

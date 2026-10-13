@@ -9,5 +9,5 @@ if (-not (Test-Path $VenvDir)) {
     & "$VenvDir\Scripts\Activate.ps1"
 }
 
-Write-Host "Starting Qwen-Image 2.1 GGUF server on http://127.0.0.1:5000"
+Write-Host "Starting AI Visual Workshop on http://127.0.0.1:5000"
 python app.py

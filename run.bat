@@ -10,6 +10,6 @@ if not exist "%VENV_DIR%" (
     call "%VENV_DIR%\Scripts\activate"
 )
 
-echo Starting Qwen-Image 2.1 GGUF server on http://127.0.0.1:5000
+echo Starting AI Visual Workshop on http://127.0.0.1:5000
 python app.py
 pause
