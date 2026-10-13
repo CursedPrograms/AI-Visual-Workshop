@@ -583,6 +583,14 @@ function jobCard(kind, prompt) {
 
 function showProgress(card, busy, p) {
   const label = card.querySelector(".job-label"), bar = card.querySelector(".progress > div");
+  if (card.classList.contains("stopping")) {
+    // GGUF models (Qwen, Wan) can only be stopped between sampler steps, and one step of a
+    // long video can take a long time on a 6 GB card, so say what's happening.
+    label.textContent = p.state === "running"
+      ? "Stopping… ComfyUI stops after the step it's on — on a long video that can take a while."
+      : "Removing it from the queue…";
+    return;
+  }
   if (p.max) {
     const pct = Math.round((100 * p.value) / p.max);
     bar.style.width = pct + "%";
@@ -696,6 +704,7 @@ $("form").addEventListener("submit", async (e) => {
   if (NEEDS_PHOTO.includes(mode) && !photoBlob) return fail("Choose a photo first.");
   if (mode === "video" && $("videoModel").value === "wanface" && !photoBlob)
     return fail("The face video model (test) needs a start photo.");
+  if (mode === "video" && $("videoModel").value === "wanface" && !confirmLongFaceVideo()) return;
   if (mode === "inpaint" && !painted) return fail("Paint over the area to change first.");
   if (mode === "uncrop") {
     if (!uncropGeometry()?.padded) return fail("Pick an aspect ratio or drag a slider to add canvas first.");
@@ -723,6 +732,27 @@ function videoFxRequest(blob, name, job, effect, multiplier = $("multiplier").va
   form.append("color", $("fxColor").value);
   form.append("job", job); form.append("client", clientId);
   return ["/api/videofx", { method: "POST", body: form }];
+}
+
+// The 14B face model's cost grows much faster than its size (attention over all frames,
+// then spilling out of a 6 GB card). Measured on an RTX 2060: 480×832 × 49 frames (20k
+// tokens) ~6 min; 640×640 × 121 (50k) ~4 h. A power law through both: time ∝ size^4.1.
+function confirmLongFaceVideo() {
+  const [w, h] = videoSize(), frames = +$("frames").value;
+  const tokens = ((frames - 1) / 4 + 1) * (w / 16) * (h / 16), ref = 13 * 30 * 52;
+  if (tokens <= ref * 1.3) return true;
+  const ratio = tokens / ref;
+  const minutes = Math.round(6 * Math.pow(ratio, 4.1));
+  const guess = minutes >= 90 ? `${Math.round(minutes / 60)} hours or more` : `${minutes} minutes or more`;
+  return confirm(`This face video is ${ratio.toFixed(1)}× the size of a 3-second 480×832 clip (about 6 min).
+
+` +
+    `On a 6 GB card it may take ${guess}, and once it's running it can only stop between steps.
+
+` +
+    `Tip: pick 3 s (and a smaller size), then click "smooth" on the result for 32 fps.
+
+Start it anyway?`);
 }
 
 function newJobId() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
@@ -782,6 +812,9 @@ function trackJob(card, job, busy, restored = false) {
     try {
       const r = await fetch("/api/cancel/" + job, { method: "POST" });
       if (!r.ok) throw new Error((await r.json()).error || ("HTTP " + r.status));
+      card.classList.add("stopping");
+      cancel.textContent = "Stopping…";
+      card.querySelector(".job-label").textContent = "Stopping…";
     } catch (err) {
       card.querySelector(".job-label").textContent = err.message;
       cancel.disabled = false; cancel.textContent = "Cancel";

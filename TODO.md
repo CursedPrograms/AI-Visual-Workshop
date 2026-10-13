@@ -123,6 +123,10 @@ Krea 2 Turbo (12B DiT, June 2026) as an alternative text-to-image model, 8 steps
 ## Next tools
 
 - [ ] **Restyle** (img2img: photo → oil painting, anime, …)
+- [x] **Cancel feedback + long-video warning** (2026-10-14): GGUF models skip ComfyUI's per-layer
+      stop check, so a cancel only lands between sampler steps; a 640×640 × 121-frame face video took
+      ~1 h per step. Cancelled cards now say "Stopping…", and the face model asks before jobs it
+      estimates at more than ~1.3× the 6-minute reference (time ∝ size^4.1 from two measurements).
 - [x] **Gallery** of everything in `output/` (Studio · Gallery · Models in the header; `GET /api/gallery`)
 - [ ] **Depth / edges** control
 
