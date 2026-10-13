@@ -8,7 +8,7 @@
 <meta name="color-scheme" content="dark">
 <meta property="og:title" content="AI Visual Workshop">
 <meta property="og:description" content="Generate, edit, inpaint, uncrop and animate, locally: Qwen-Image 2.1, Krea 2 and Wan 2.2 GGUF through ComfyUI.">
-<meta property="og:image" content="docs/ui-video.png">
+<meta property="og:image" content="docs/ui-studio.jpg">
 <link rel="icon" href="site/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="site/style.css">
 </head>
@@ -30,22 +30,28 @@
       <span class="tag">GGUF</span><span class="tag">ComfyUI</span><span class="tag">Flask</span><span class="tag">MIT</span>
     </div>
     <figure class="shot">
-      <img src="docs/ui-video.png" alt="The web UI on its Video tab" width="1280" height="1000">
-      <figcaption>The Video tab</figcaption>
+      <img src="docs/ui-studio.jpg" alt="The Workshop: the tool panel on the left, a gallery of generated images on the right" width="1440" height="900">
+      <figcaption>The Studio: pick a tool, describe it, press Enter</figcaption>
     </figure>
   </div>
 </header>
 
 <main class="wrap">
   <section id="tabs">
-    <h2>Five tabs</h2>
+    <h2>Ten tools, one panel</h2>
     <div class="grid">
-      <div class="card"><span class="k">Generate</span><h3>Text to image</h3><p>Qwen-Image 2.1, or Krea 2 Turbo in 8 steps. Size, steps, CFG, batch, and a seed you can roll &#127922; or reuse from any result.</p></div>
+      <div class="card"><span class="k">Generate</span><h3>Text to image</h3><p>Qwen-Image 2.1, Krea 2 Turbo in 8 steps, SDXL (RealVisXL Lightning) in 6, or Chroma1-HD. Size, steps, CFG, batch, and a seed you can roll &#127922; or reuse from any result.</p></div>
       <div class="card"><span class="k">Edit photo</span><h3>Describe the change</h3><p>&ldquo;Make the dress red.&rdquo; Qwen-Image 2.1 edits natively, keeping the photo's shape and everything you didn't mention.</p></div>
       <div class="card"><span class="k">Inpaint</span><h3>Repaint one area</h3><p>Paint a mask and regenerate only that part. Everything outside it is kept pixel for pixel.</p></div>
       <div class="card"><span class="k">Uncrop</span><h3>Past the borders</h3><p>Extend to 16:9, 1:1 or &ldquo;zoom out 2&times;&rdquo;. The model invents the surroundings; the original stays exact.</p></div>
-      <div class="card"><span class="k">Video</span><h3>Bring it to life</h3><p>Wan 2.2: animate a photo or make a video from a prompt alone. 2&ndash;5&nbsp;s at 24&nbsp;fps, sized to the photo.</p></div>
-      <div class="card"><span class="k">Extras</span><h3>Enhance, LoRA, queue</h3><p>&#10024; rewrites a prompt with a local LLM, LoRAs stack on any tab, and every job gets a card with live progress and Cancel.</p></div>
+      <div class="card"><span class="k">Pose</span><h3>Copy a pose</h3><p>SDPose reads the body, hands and face in a photo; Qwen-Image draws something new in exactly that pose.</p></div>
+      <div class="card"><span class="k">Background</span><h3>Cut out or replace</h3><p>BiRefNet cuts the subject out as a transparent PNG, or keeps it and paints a new background you describe. Local, no cloud.</p></div>
+      <div class="card"><span class="k">Relight</span><h3>Change the light</h3><p>&ldquo;Golden hour from the left.&rdquo; Only the lighting changes; people, pose and composition stay.</p></div>
+      <div class="card"><span class="k">Video FX</span><h3>Smooth, cut out</h3><p>RIFE adds in-between frames (16&nbsp;&rarr;&nbsp;32&nbsp;fps), or remove a video's background onto a green screen.</p></div>
+      <div class="card"><span class="k">Upscale</span><h3>2&times; or 4&times;</h3><p>4x-UltraSharp V2 adds real detail. One click under any result, or its own tool for any photo.</p></div>
+      <div class="card"><span class="k">Video</span><h3>Bring it to life</h3><p>Wan 2.2: animate a photo or make a video from a prompt alone. 2&ndash;5&nbsp;s at 24&nbsp;fps, sized to the photo. Plus a face-focused 14B model <span class="muted">(test)</span>.</p></div>
+      <div class="card"><span class="k">Models</span><h3>Download in the app</h3><p>See what's installed and download the rest, resumable over parallel connections, without leaving the page.</p></div>
+      <div class="card"><span class="k">Extras</span><h3>Enhance, LoRA, queue</h3><p>&#10024; rewrites a prompt with a local LLM, LoRAs stack on any tool, and every job gets a card with live progress and Cancel.</p></div>
     </div>
     <figure class="shot wide">
       <img src="docs/video-frames.jpg" alt="Five frames of a Wan 2.2 video made from one portrait: she smiles, tucks her hair behind her ear and tilts her head" width="2400" height="832" loading="lazy">
@@ -53,15 +59,42 @@
     </figure>
   </section>
 
+  <section id="made">
+    <h2>Made with it</h2>
+    <p class="muted">Straight out of the app on an RTX 2060 (6&nbsp;GB), no retouching.</p>
+    <div class="samples">
+      <figure><img src="docs/sample-lighthouse.jpg" alt="A watercolour lighthouse on a rocky coast at dusk" width="768" height="576" loading="lazy"><figcaption>Qwen-Image 2.1 &middot; &ldquo;a watercolour painting of a lighthouse at dusk&rdquo;</figcaption></figure>
+      <figure><img src="docs/sample-motorcycle.jpg" alt="A red vintage motorcycle on a rain-soaked neon street at night" width="768" height="576" loading="lazy"><figcaption>Krea 2 Turbo, 8 steps &middot; &ldquo;a red vintage motorcycle on a neon Tokyo street&rdquo;</figcaption></figure>
+      <figure><img src="docs/sample-treehouse.jpg" alt="An orange cat asleep in a cozy treehouse reading nook" width="576" height="576" loading="lazy"><figcaption>Qwen-Image 2.1 &middot; &ldquo;a cozy reading nook inside a treehouse&rdquo;</figcaption></figure>
+    </div>
+    <figure class="shot wide">
+      <img src="docs/sample-edit.jpg" alt="Before and after: the same woman, face and studio; her sweater outfit changed to a red satin gown" width="870" height="768" loading="lazy">
+      <figcaption>Edit photo &middot; &ldquo;a red satin evening gown&rdquo;: face, pose and room untouched</figcaption>
+    </figure>
+  </section>
+
   <section id="models">
     <h2>Models</h2>
+    <figure class="shot wide">
+      <img src="docs/ui-models.jpg" alt="The Models page: every model with its status, size, license and a Download button" width="1440" height="1100" loading="lazy">
+      <figcaption>The Models page: see what's installed, download the rest</figcaption>
+    </figure>
+    <figure class="shot wide">
+      <img src="docs/ui-model-info.jpg" alt="The model picker open, with an info card about Qwen-Image 2.1" width="1440" height="900" loading="lazy">
+      <figcaption>Hover a model to read about it</figcaption>
+    </figure>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Model</th><th>Does</th><th>Default file</th><th>License</th></tr></thead>
         <tbody>
           <tr><td>Qwen-Image 2.1</td><td>Generate, edit, inpaint, uncrop</td><td><code>qwen-image-2.1-UC-Q4_K_M.gguf</code> (4.6&nbsp;GB)</td><td>Qwen Research</td></tr>
           <tr><td>Krea 2 Turbo <span class="muted">(optional)</span></td><td>Generate, in 8 steps</td><td><code>krea2_turbo_bf16-Q4_0.gguf</code> (8.3&nbsp;GB)</td><td>Krea 2 Community</td></tr>
+          <tr><td>RealVisXL V5 Lightning</td><td>Generate (SDXL, photoreal, 6 steps)</td><td><code>RealVisXL_V5.0_Lightning_fp16.safetensors</code> (6.9&nbsp;GB)</td><td>OpenRAIL++</td></tr>
           <tr><td>Wan 2.2 TI2V-5B <span class="muted">(optional)</span></td><td>Video: text or photo to video</td><td><code>Wan2.2-TI2V-5B-Q5_K_M.gguf</code> (3.8&nbsp;GB)</td><td>Apache 2.0</td></tr>
+          <tr><td>Wan 2.2 I2V-A14B, faces <span class="muted">(test)</span></td><td>Video: photo to video, faces and identity</td><td>LightX2V 4-step, high + low noise Q3_K_M (14.4&nbsp;GB)</td><td>Apache 2.0</td></tr>
+          <tr><td>SDPose whole-body</td><td>Pose</td><td><code>sdpose_wholebody_fp16.safetensors</code> (1.9&nbsp;GB)</td><td>MIT</td></tr>
+          <tr><td>4x-UltraSharp V2</td><td>Upscale</td><td><code>4x-UltraSharpV2.safetensors</code> (0.14&nbsp;GB)</td><td>CC BY-NC-SA 4.0</td></tr>
+          <tr><td>Chroma1-HD <span class="muted">(optional)</span></td><td>Generate, uncensored, Flux-based</td><td><code>Chroma1-HD-Q4_K_M.gguf</code> (5.6&nbsp;GB)</td><td>Apache 2.0</td></tr>
         </tbody>
       </table>
     </div>
@@ -70,7 +103,7 @@
 
   <section id="how">
     <h2>How it works</h2>
-<pre>browser &rarr; Flask (app.py) &rarr; HTTP + websocket &rarr; ComfyUI &rarr; Qwen-Image 2.1 / Krea 2 / Wan 2.2 (GGUF)
+<pre>browser &rarr; Flask (app.py) &rarr; HTTP + websocket &rarr; ComfyUI &rarr; Qwen-Image 2.1 / Krea 2 / SDXL / Wan 2.2 / SDPose
                        &darr;
                  Ollama (&#10024; Enhance, optional)</pre>
     <p class="muted">The Flask server doesn't run the models: it patches the API-format ComfyUI workflow for the tab with your prompt and settings, queues it, relays live sampler progress, and saves the results to <code>output/</code>. So the UI can live on a Raspberry Pi while a GPU PC does the work.</p>
@@ -80,7 +113,7 @@
     <h2>Run it</h2>
     <ol class="steps">
       <li>Install <a href="https://github.com/comfyanonymous/ComfyUI">ComfyUI</a> and the <a href="https://github.com/leejet/ComfyUI-GGUF">leejet ComfyUI-GGUF</a> nodes.</li>
-      <li>Download the models (the README lists every file) and point ComfyUI at them with <code>extra_model_paths.yaml</code>.</li>
+      <li>Point ComfyUI at this repo's <code>models/</code> with <code>extra_model_paths.yaml</code>, then download the models from the app's <b>Models</b> page (or by hand; the README lists every file).</li>
       <li>Run <code>run.bat</code> (or <code>run.ps1</code>) and open <code>http://127.0.0.1:5000</code>. It starts ComfyUI in its own window if it isn't running yet; with <code>run.sh</code>, start ComfyUI yourself first.</li>
     </ol>
 <pre><span class="p">$</span> run.bat

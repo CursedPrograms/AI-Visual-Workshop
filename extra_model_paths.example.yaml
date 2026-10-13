@@ -9,6 +9,10 @@ qwen_image_gguf:
     clip: text_encoders
     vae: vae
     loras: loras
+    checkpoints: checkpoints        # SDPose (Pose tab)
+    upscale_models: upscale_models  # 4x-UltraSharp V2 (Upscale)
+    background_removal: background_removal  # BiRefNet (Background, Video FX)
+    frame_interpolation: frame_interpolation  # RIFE (smooth video)
 
 # Optional: Krea 2 Turbo (text-to-image only). Point base_path at wherever you keep
 # its files, laid out as diffusion_models/ text_encoders/ vae/ loras/.

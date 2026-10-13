@@ -1,0 +1,77 @@
+{
+  "1": {
+    "class_type": "LoadVideo",
+    "inputs": {
+      "file": "input.mp4"
+    }
+  },
+  "2": {
+    "class_type": "GetVideoComponents",
+    "inputs": {
+      "video": [
+        "1",
+        0
+      ]
+    }
+  },
+  "3": {
+    "class_type": "FrameInterpolationModelLoader",
+    "inputs": {
+      "model_name": "rife_v4.26.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "FrameInterpolate",
+    "inputs": {
+      "interp_model": [
+        "3",
+        0
+      ],
+      "images": [
+        "2",
+        0
+      ],
+      "multiplier": 2
+    }
+  },
+  "5": {
+    "class_type": "ComfyMathExpression",
+    "inputs": {
+      "expression": "a * b",
+      "values.a": [
+        "2",
+        2
+      ],
+      "values.b": 2
+    }
+  },
+  "6": {
+    "class_type": "CreateVideo",
+    "inputs": {
+      "images": [
+        "4",
+        0
+      ],
+      "fps": [
+        "5",
+        0
+      ],
+      "audio": [
+        "2",
+        1
+      ]
+    }
+  },
+  "7": {
+    "class_type": "SaveVideo",
+    "inputs": {
+      "video": [
+        "6",
+        0
+      ],
+      "filename_prefix": "video/smooth",
+      "format": "mp4",
+      "codec": "h264"
+    }
+  }
+}

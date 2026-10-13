@@ -25,21 +25,55 @@ optional Krea 2 Turbo for text-to-image, and optional Wan 2.2 TI2V-5B for video.
 **Site:** [cursedprograms.github.io/AI-Visual-Workshop](https://cursedprograms.github.io/AI-Visual-Workshop/)
 · formerly *Qwen-Image-2.1-Uncensored-GGUF*.
 
-- **Generate** — text to image with Qwen-Image 2.1, or **Krea 2 Turbo** (optional, 8 steps).
+- **Generate** — text to image with Qwen-Image 2.1, **Krea 2 Turbo** (8 steps), **SDXL**
+  (RealVisXL V5 Lightning, 6 steps, or any SDXL checkpoint) or **Chroma1-HD** (optional).
 - **Edit photo** — upload a photo and describe the change (*"make the dress red"*); the base
   model edits natively, no separate edit model needed.
 - **Inpaint** — paint a mask over part of a photo and regenerate only that area; everything
   outside the mask is kept pixel for pixel.
 - **Uncrop** — extend a photo beyond its borders (to 16:9, 1:1, "zoom out 2×", or per side);
   the model invents the surroundings and the original pixels are kept exactly.
+- **Pose** — upload a photo of someone in a pose; **SDPose** finds the skeleton and Qwen-Image
+  draws something new in exactly that pose (you get the skeleton map too).
+- **Upscale** — enlarge any photo or result 2× or 4× with **4x-UltraSharp V2**; every image
+  result also has an **upscale** link.
+- **Background** — cut the subject out as a transparent PNG (**BiRefNet**, local), or keep the
+  subject and describe a new background. Every image result has a **cut out** link.
+- **Relight** — describe the light (*"golden hour from the left"*); Qwen-Image changes only the
+  lighting.
+- **Video FX** — smooth any video with **RIFE** in-between frames (2–4× the frame rate; every
+  video result has a **smooth** link), or remove a video's background (green / blue screen,
+  black, white).
 - **Video** — bring a photo to life, or make a video from a prompt alone, with **Wan 2.2**
-  TI2V-5B (optional): 2–5 seconds at 24 fps, sized to the photo's shape.
+  TI2V-5B (optional): 2–5 seconds at 24 fps, sized to the photo's shape. A second video model,
+  **Wan 2.2 I2V-A14B (test)**, is tuned for faces and identity (photo to video only).
+- **Models page** — see which models are installed, and download the missing or optional ones
+  (resumable) without leaving the app.
 - **✨ Enhance** — rewrite a short prompt into a detailed one with a local LLM (Ollama, optional).
 - **LoRA** — stack a style/behaviour LoRA on any mode, with a strength slider.
 - **Job queue** — press the button as often as you like; each job gets a card with its queue
   position, a live progress bar and its own **Cancel**. **use as photo** keeps editing a result.
   Jobs are tracked on the server: close the tab and reopen it later, and running jobs and
   finished results are still there.
+
+<p align="center">
+  <img src="docs/ui-studio.jpg" alt="The Workshop: tool panel and gallery" width="100%">
+</p>
+
+| | | |
+| :---: | :---: | :---: |
+| <img src="docs/sample-lighthouse.jpg" alt="watercolour lighthouse" width="260"> | <img src="docs/sample-motorcycle.jpg" alt="motorcycle on a neon street" width="260"> | <img src="docs/sample-treehouse.jpg" alt="cat in a treehouse nook" width="200"> |
+| Qwen-Image 2.1 | Krea 2 Turbo (8 steps) | Qwen-Image 2.1 |
+
+<p align="center">
+  <img src="docs/sample-edit.jpg" alt="Before and after an edit: red satin gown, same face and room" width="520"><br>
+  <em>Edit photo: “a red satin evening gown”: face, pose and room untouched</em>
+</p>
+
+<p align="center">
+  <img src="docs/ui-model-info.jpg" alt="Model picker with an info card" width="49%">
+  <img src="docs/ui-models.jpg" alt="The Models page" width="49%">
+</p>
 
 ## 📖 Overview
 
@@ -66,6 +100,13 @@ and saving them under `output/`.
 | `extra_model_paths.example.yaml` | Template to point ComfyUI at this repo's `models/` |
 | `workflows/qwen_image_2.1_gguf_t2i.json` | Drag into the ComfyUI UI |
 | `workflows/qwen_image_2.1_gguf_t2i_api.json` | API-format text-to-image graph the server/CLI drive |
+| `workflows/qwen_image_2.1_gguf_pose_api.json` | SDPose skeleton → Qwen-Image in that pose (Pose tab) |
+| `workflows/upscale_api.json` | 4x-UltraSharp V2 upscale (Upscale tab) |
+| `workflows/bg_remove_api.json`, `workflows/qwen_image_2.1_gguf_bg_replace_api.json` | Background: cut-out, and a new background around the subject |
+| `workflows/video_smooth_api.json`, `workflows/video_bg_remove_api.json` | Video FX: RIFE smoothing, per-frame background removal |
+| `workflows/sdxl_t2i_api.json`, `workflows/chroma1_hd_gguf_t2i_api.json` | SDXL and Chroma1-HD text-to-image |
+| `workflows/wan2.2_i2v_a14b_face_test_gguf_api.json` | Face video model (test): Wan 2.2 I2V-A14B, two experts |
+| `model_catalog.py`, `model_manager.py` | The Models page: what each model needs, status, downloads |
 | `workflows/qwen_image_2.1_gguf_edit_api.json` | API-format photo-edit graph |
 | `workflows/qwen_image_2.1_gguf_inpaint_api.json` | API-format masked-inpaint graph |
 | `workflows/krea2_turbo_gguf_t2i_api.json` | API-format Krea 2 Turbo text-to-image graph (optional) |
@@ -229,6 +270,45 @@ mv $WAN/split_files/vae $WAN/vae
 Then add the `wan22:` entry from `extra_model_paths.example.yaml` and restart ComfyUI. Q4_K_M,
 Q6_K and Q8_0 of the model (and Q8_0 of the encoder) work too; pick them under **Models & LoRA**.
 
+### More models: SDXL, Chroma and the face video model (test)
+
+All of these can be downloaded from the **Models** page (header → **Models**), which also shows
+what is installed. The files go into this repo's `models/` (`MODELS_DIR`), which ComfyUI already
+reads, so they appear after a page reload. Base models are the Workshop's standard set; optional
+ones are extras.
+
+| Model | Kind | Files | Size | License |
+| --- | --- | --- | --- | --- |
+| RealVisXL V5 Lightning | SDXL image, base | `RealVisXL_V5.0_Lightning_fp16.safetensors` → `checkpoints/` | 6.9 GB | OpenRAIL++ |
+| Wan 2.2 I2V-A14B, faces **(test)** | video, base | LightX2V 4-step high- + low-noise Q3_K_M GGUFs → `diffusion_models/`, `wan_2.1_vae.safetensors` → `vae/` | 14.6 GB | Apache 2.0 |
+| Chroma1-HD | image, optional | `Chroma1-HD-Q4_K_M.gguf`, `t5xxl_fp8_e4m3fn_scaled.safetensors`, `ae.safetensors` | 11 GB | Apache 2.0 |
+| NoobAI-XL 1.1 | SDXL anime, optional | `NoobAI-XL-v1.1.safetensors` → `checkpoints/` | 7.1 GB | Fair AI Public License |
+| Juggernaut XI | SDXL photo, optional | `Juggernaut-XI-byRunDiffusion.safetensors` → `checkpoints/` | 7.1 GB | CC BY-NC-ND 4.0 |
+| BiRefNet | background removal, base | `birefnet.safetensors` → `background_removal/` | 0.44 GB | MIT |
+| RIFE v4.26 | frame interpolation, base | `rife_v4.26.safetensors` → `frame_interpolation/` | 23 MB | MIT / Apache 2.0 |
+| DMD2 4-step LoRA | SDXL speed-up, optional | `dmd2_sdxl_4step_lora_fp16.safetensors` → `loras/` | 0.4 GB | CC BY-NC 4.0 |
+
+The face video model **(test)** reuses the Wan text encoder you already have; its VAE is the
+older Wan 2.1 one, which is a different file from the 5B model's `wan2.2_vae`. It renders at
+16 fps in 4 steps, split between two 14B experts, so expect it to be slower than the 5B model on
+a 6 GB card (layers are swapped through system RAM).
+
+### Pose and Upscale models
+
+Both run on ComfyUI's own nodes (no custom nodes); they only need two files in this repo's
+`models/`, which the `checkpoints:` and `upscale_models:` lines of the `qwen_image_gguf:` entry
+in `extra_model_paths.example.yaml` point ComfyUI at (restart ComfyUI after adding them).
+
+| File | Size | From | Folder | License |
+| --- | --- | --- | --- | --- |
+| `sdpose_wholebody_fp16.safetensors` | 1.92 GB | [Comfy-Org/SDPose](https://huggingface.co/Comfy-Org/SDPose) (`checkpoints/`) | `checkpoints/` | MIT |
+| `4x-UltraSharpV2.safetensors` | 140 MB | [Kim2091/UltraSharpV2](https://huggingface.co/Kim2091/UltraSharpV2) | `upscale_models/` | CC BY-NC-SA 4.0 (non-commercial) |
+
+```bash
+hf download Comfy-Org/SDPose checkpoints/sdpose_wholebody_fp16.safetensors --local-dir models
+hf download Kim2091/UltraSharpV2 4x-UltraSharpV2.safetensors --local-dir models/upscale_models
+```
+
 ### Start ComfyUI
 
 On a 6 GB card (tested on an RTX 2060), these flags cut render time from about 10 s to 4 s
@@ -275,7 +355,12 @@ To expose it on the whole local network instead of just this machine, use **`run
 
 ### Using the web UI
 
-The five tabs at the top of the form switch mode:
+The **Tool** dropdown at the top of the panel switches mode. In the **Model** and **Video model**
+pickers, hover (or arrow to) a model to see a card about it: what it's best at, speed, license,
+and whether it's installed. Each part of the form (photo, prompt,
+size & quality, models) folds open and closed, and **«** hides the whole panel so the gallery
+gets the full width; the page remembers both. Click an image to see it full size.
+The **Project page ↗** link in the header opens the [GitHub Pages site](https://cursedprograms.github.io/AI-Visual-Workshop/).
 
 - **Generate** — prompt, size, steps, CFG, batch, seed. **Model** switches between Qwen-Image 2.1
   and Krea 2 Turbo (steps jump to 8 and the negative prompt is hidden, since Turbo runs at CFG 1).
@@ -294,7 +379,28 @@ The five tabs at the top of the form switch mode:
   the whole expanded image. Large expansions work best in steps: uncrop a little, **use as
   photo**, uncrop again.
 
-- **Video** — optionally choose a **start photo** (it becomes the first frame and comes to life;
+- **Pose** — choose (or drop) a photo of someone in the pose you want, then describe the new
+  picture: *"an astronaut on the moon, cinematic light"*. SDPose reads the body, hands and face
+  and Qwen-Image draws the prompt in that pose, at the photo's aspect ratio. The skeleton map is
+  saved next to the result, so you can see what was detected. It copies the pose, not the person.
+
+- **Background** — choose a photo, then **Remove** (a transparent PNG; no prompt) or
+  **Replace**: describe the new background (*"a sunlit beach at golden hour"*). The subject is
+  found by BiRefNet and kept pixel for pixel; Qwen-Image paints everything around it.
+
+- **Relight** — choose a photo and describe the light: *"neon pink and blue from both sides"*,
+  *"soft overcast daylight"*. It is an Edit that is told to change only the lighting.
+
+- **Video FX** — choose (or drop) a video. **Smooth** adds in-between frames with RIFE (2× turns
+  the face model's 16 fps into 32). **Remove background** runs BiRefNet on every frame and puts
+  the subject on green, blue, black or white. Short clips work best.
+
+- **Upscale** — choose a photo and **2×** or **4×**. No prompt; it adds detail rather than just
+  pixels. Faster: click **upscale** under any image result (2×). Large results open from
+  `output/` by URL instead of being sent inline.
+
+- **Video** — **Video model** picks Wan 2.2 TI2V-5B (prompt or photo) or the face model **(test)**
+  (photo only, 16 fps). Optionally choose a **start photo** (it becomes the first frame and comes to life;
   **×** removes it for a video from the prompt alone), then describe the motion: *"she slowly turns
   toward the camera and smiles, slow push-in"*. **Size** matches the photo's shape at about
   832×480 (fast) or 1280×704 (HD), or pick a fixed size; **Length** is 2, 3.4 or 5 seconds at 24 fps.
@@ -372,6 +478,7 @@ Open **port 5000** in the host's firewall so other devices can reach it. Then br
 | `COMFY_SERVER` | `http://127.0.0.1:8188` | Where ComfyUI is listening |
 | `COMFYUI_DIR` | `C:\cc\ComfyUI` | ComfyUI folder the Windows run scripts start it from |
 | `COMFYUI_ARGS` | *(the flags in [Start ComfyUI](#start-comfyui))* | Flags the run scripts pass to `main.py` |
+| `MODELS_DIR` | `models/` in this repo | Where the Models page downloads to |
 | `HOST` | `127.0.0.1` | Interface Flask binds (`0.0.0.0` to expose on the LAN) |
 | `PORT` | `5000` | Port Flask binds |
 | `FLASK_DEBUG` | *(off)* | Any non-empty value enables Flask debug mode |
@@ -473,6 +580,32 @@ file (the first frame; without it, text-to-video), plus optional `width` / `heig
 ```bash
 curl -X POST http://127.0.0.1:5000/api/video \
   -F image=@photo.png -F "prompt=she turns toward the camera and smiles" -F frames=81
+```
+
+**`GET /api/models`** — every model in the catalog with `installed`, per-file `state`
+(`installed` / `partial` / `writing` / `missing`), sizes, license and any download `progress`.
+**`POST /api/models/<id>/download`** queues its missing files (resumable);
+**`POST /api/models/<id>/cancel`** stops it. `/api/video` takes `model=wanface` for the face
+model (test), which needs `image`. `/api/generate` takes `model` = `qwen`, `krea2`, `sdxl` or
+`chroma`.
+
+**`POST /api/background`** — multipart form: `image` and `mode` (`remove`: transparent PNG;
+`replace`: plus `prompt` for the new background, the image at multiples of 32, and the usual
+`steps`, `cfg`, `seed`, `unet`, `clip`, `lora`, …).
+**`POST /api/videofx`** — multipart form: `video` and `effect` (`smooth` with `multiplier` 2–4, or
+`remove_bg` with `color` = `green` / `blue` / `black` / `white`). Relight is `/api/edit` with
+`kind=relight` (the prompt describes only the light).
+
+**`POST /api/pose`** — multipart form: `image` (a photo showing the pose) and `prompt` (the new
+picture), plus optional `resolution` (1024), `negative`, `steps`, `cfg`, `seed`, `unet`, `clip`,
+`lora`, `lora_strength`, `job`, `client`, `timeout`. Same response as `/api/generate`; `images`
+holds the result and the `pose_map_*.png` skeleton.
+
+**`POST /api/upscale`** — multipart form: `image` and `scale` (`2` or `4`, default 2), plus
+optional `job`, `client`, `timeout`. `seed` in the response is `null`.
+
+```bash
+curl -X POST http://127.0.0.1:5000/api/upscale -F image=@photo.png -F scale=4
 ```
 
 **`POST /api/enhance`** — `{"prompt": "...", "mode": "generate"|"edit"|"inpaint"|"uncrop"|"video"}` →

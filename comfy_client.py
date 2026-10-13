@@ -24,8 +24,35 @@ EDIT_WORKFLOW = WORKFLOWS / "qwen_image_2.1_gguf_edit_api.json"
 INPAINT_WORKFLOW = WORKFLOWS / "qwen_image_2.1_gguf_inpaint_api.json"
 KREA2_WORKFLOW = WORKFLOWS / "krea2_turbo_gguf_t2i_api.json"
 VIDEO_WORKFLOW = WORKFLOWS / "wan2.2_ti2v_5b_gguf_api.json"
-# Text-to-image model families: "qwen" (Qwen-Image 2.1) or "krea2" (Krea 2 Turbo).
-T2I_WORKFLOWS = {"qwen": WORKFLOW, "krea2": KREA2_WORKFLOW}
+POSE_WORKFLOW = WORKFLOWS / "qwen_image_2.1_gguf_pose_api.json"
+UPSCALE_WORKFLOW = WORKFLOWS / "upscale_api.json"
+BG_REMOVE_WORKFLOW = WORKFLOWS / "bg_remove_api.json"
+BG_REPLACE_WORKFLOW = WORKFLOWS / "qwen_image_2.1_gguf_bg_replace_api.json"
+VIDEO_BG_WORKFLOW = WORKFLOWS / "video_bg_remove_api.json"
+VIDEO_SMOOTH_WORKFLOW = WORKFLOWS / "video_smooth_api.json"
+BG_MODEL = "birefnet.safetensors"
+INTERP_MODEL = "rife_v4.26.safetensors"
+# Prompt wrappers: the user only describes the new background / the light.
+BG_PROMPT = ("Replace the background with: {prompt}. Keep the person or subject exactly as it is, "
+             "and match the new background's lighting, perspective and focus to the subject.")
+RELIGHT_PROMPT = ("Relight this photo: {prompt}. Change only the lighting, light direction, colour "
+                  "and shadows; keep the people, faces, pose, clothing, objects and composition "
+                  "exactly the same.")
+# Video background colours (0xRRGGBB) by name.
+BG_COLORS = {"green": 0x00B140, "black": 0x000000, "white": 0xFFFFFF, "blue": 0x0047BB}
+UPSCALE_MODEL = "4x-UltraSharpV2.safetensors"  # a 4x model; smaller factors scale its output down
+# Wraps the user's prompt for the pose graph: image 1 is the SDPose skeleton, not a picture.
+POSE_PROMPT = ("Image 1 is a pose skeleton map (OpenPose-style keypoints on black). Create a new, "
+               "fully rendered image in which the person takes exactly this pose: same body, arm, "
+               "leg and head positions, same framing. Do not draw the skeleton, lines or dots. "
+               "The image: {prompt}")
+CHROMA_WORKFLOW = WORKFLOWS / "chroma1_hd_gguf_t2i_api.json"
+SDXL_WORKFLOW = WORKFLOWS / "sdxl_t2i_api.json"
+FACE_VIDEO_WORKFLOW = WORKFLOWS / "wan2.2_i2v_a14b_face_test_gguf_api.json"
+# Text-to-image model families: "qwen" (Qwen-Image 2.1), "krea2" (Krea 2 Turbo),
+# "chroma" (Chroma1-HD) or "sdxl" (any SDXL checkpoint, e.g. RealVisXL Lightning).
+T2I_WORKFLOWS = {"qwen": WORKFLOW, "krea2": KREA2_WORKFLOW,
+                 "chroma": CHROMA_WORKFLOW, "sdxl": SDXL_WORKFLOW}
 MAX_SEED = 2 ** 53
 
 
@@ -60,30 +87,37 @@ def _apply_lora(wf, lora, strength, consumer="6"):
 def build_workflow(prompt, *, model="qwen", negative="", width=1024, height=1024,
                    steps=25, cfg=1.0, seed=None, batch=1, unet=None, clip=None,
                    lora=None, lora_strength=1.0,
-                   sampler="euler", scheduler="simple", prefix=None):
-    """Patch the text-to-image graph for `model` ("qwen" or "krea2").
+                   sampler=None, scheduler=None, prefix=None):
+    """Patch the text-to-image graph for `model` (a T2I_WORKFLOWS key).
 
     Krea 2 Turbo is distilled: use about 8 steps and cfg 1 (it has no negative
-    prompt). Returns (workflow_dict, resolved_seed).
+    prompt). For "sdxl", `unet` is the checkpoint file. `sampler`/`scheduler`
+    default to the graph's own (each model has its own best pair).
+    Returns (workflow_dict, resolved_seed).
     """
     if model not in T2I_WORKFLOWS:
         raise ValueError(f"unknown model {model!r}; expected one of {sorted(T2I_WORKFLOWS)}")
     wf = load_workflow(T2I_WORKFLOWS[model])
     if unet:
-        wf["1"]["inputs"]["unet_name"] = unet
-    if clip:
+        wf["1"]["inputs"]["ckpt_name" if model == "sdxl" else "unet_name"] = unet
+    if clip and "2" in wf:
         wf["2"]["inputs"]["clip_name"] = clip
-    if model == "krea2":
-        wf["4"]["inputs"]["text"] = prompt
-    else:
+    if model == "qwen":
         wf["4"]["inputs"]["prompt"] = prompt
         wf["4"]["inputs"]["negative_prompt"] = negative
+    else:
+        wf["4"]["inputs"]["text"] = prompt
+        if negative and model in ("chroma", "sdxl"):
+            wf["9"]["inputs"]["text"] = negative
     _apply_lora(wf, lora, lora_strength)
     wf["5"]["inputs"].update(width=int(width), height=int(height),
                              batch_size=int(batch))
     seed = int(seed) if seed not in (None, "") else random.randint(0, MAX_SEED)
-    wf["6"]["inputs"].update(seed=seed, steps=int(steps), cfg=float(cfg),
-                             sampler_name=sampler, scheduler=scheduler)
+    wf["6"]["inputs"].update(seed=seed, steps=int(steps), cfg=float(cfg))
+    if sampler:
+        wf["6"]["inputs"]["sampler_name"] = sampler
+    if scheduler:
+        wf["6"]["inputs"]["scheduler"] = scheduler
     if prefix:
         wf["8"]["inputs"]["filename_prefix"] = prefix
     return wf, seed
@@ -187,6 +221,155 @@ def build_video_workflow(prompt, image=None, *, negative="", width=832, height=4
     return wf, seed
 
 
+def build_face_video_workflow(prompt, image, *, negative="", width=832, height=480,
+                              frames=81, fps=16, steps=4, cfg=1.0, shift=5.0, seed=None,
+                              unet=None, clip=None, lora=None, lora_strength=1.0,
+                              sampler="euler", scheduler="simple",
+                              prefix="video/Wan2.2_i2v_face_test"):
+    """(test) Patch the Wan 2.2 I2V-A14B graph (LightX2V 4-step distill): photo to
+    video, strongest on faces. Two experts share the steps: high-noise for the first
+    half, low-noise for the rest. `unet` is the high-noise file; the low-noise file
+    is the same name with "high_noise" -> "low_noise". `image` is required.
+    Returns (workflow_dict, resolved_seed).
+    """
+    if not image:
+        raise ValueError("the face video model needs a start photo")
+    width, height, frames, steps = int(width), int(height), int(frames), int(steps)
+    if width % 16 or height % 16:
+        raise ValueError("width and height must be multiples of 16")
+    if frames < 5 or (frames - 1) % 4:
+        raise ValueError("frames must be 4n+1 (e.g. 49, 81)")
+    wf = load_workflow(FACE_VIDEO_WORKFLOW)
+    if unet:
+        wf["1"]["inputs"]["unet_name"] = unet
+        wf["21"]["inputs"]["unet_name"] = unet.replace("high_noise", "low_noise")
+    if clip:
+        wf["2"]["inputs"]["clip_name"] = clip
+    for node in ("4", "24"):
+        wf[node]["inputs"]["shift"] = float(shift)
+    if lora:  # the same LoRA on both experts
+        for loader, sampling, node in (("1", "4", "20"), ("21", "24", "25")):
+            wf[node] = {"class_type": "LoraLoaderModelOnly",
+                        "inputs": {"model": [loader, 0], "lora_name": lora,
+                                   "strength_model": float(lora_strength)}}
+            wf[sampling]["inputs"]["model"] = [node, 0]
+    wf["5"]["inputs"]["text"] = prompt
+    if negative:
+        wf["6"]["inputs"]["text"] = negative
+    wf["7"]["inputs"]["image"] = image
+    wf["8"]["inputs"].update(width=width, height=height, length=frames)
+    seed = int(seed) if seed not in (None, "") else random.randint(0, MAX_SEED)
+    split = max(1, steps // 2)
+    for node, start, end in (("9", 0, split), ("29", split, 10000)):
+        wf[node]["inputs"].update(noise_seed=seed, steps=steps, cfg=float(cfg),
+                                  sampler_name=sampler, scheduler=scheduler,
+                                  start_at_step=start, end_at_step=end)
+    wf["11"]["inputs"]["fps"] = float(fps)
+    wf["12"]["inputs"]["filename_prefix"] = prefix
+    return wf, seed
+
+
+def build_pose_workflow(prompt, image, *, negative="", resolution=1024, steps=25,
+                        cfg=1.0, seed=None, unet=None, clip=None,
+                        lora=None, lora_strength=1.0,
+                        sampler="euler", scheduler="simple",
+                        prefix="Qwen_image_2.1_gguf_pose"):
+    """Patch the pose graph: SDPose reads the pose of the person in `image` (a filename
+    already uploaded to ComfyUI) and Qwen-Image draws `prompt` in that pose. The skeleton
+    map is saved too. Returns (workflow_dict, resolved_seed).
+    """
+    wf = load_workflow(POSE_WORKFLOW)
+    if unet:
+        wf["1"]["inputs"]["unet_name"] = unet
+    if clip:
+        wf["2"]["inputs"]["clip_name"] = clip
+    wf["4"]["inputs"].update(prompt=POSE_PROMPT.format(prompt=prompt), negative_prompt=negative,
+                             resolution=int(resolution))
+    _apply_lora(wf, lora, lora_strength)
+    seed = int(seed) if seed not in (None, "") else random.randint(0, MAX_SEED)
+    wf["6"]["inputs"].update(seed=seed, steps=int(steps), cfg=float(cfg),
+                             sampler_name=sampler, scheduler=scheduler)
+    wf["8"]["inputs"]["filename_prefix"] = prefix
+    wf["9"]["inputs"]["image"] = image
+    wf["31"]["inputs"]["resize_type.longer_size"] = int(resolution)
+    return wf, seed
+
+
+def build_bg_remove_workflow(image, *, model=BG_MODEL, prefix="cutout"):
+    """Cut the subject out of `image` (an uploaded filename) as a transparent PNG.
+    Returns (workflow, None)."""
+    wf = load_workflow(BG_REMOVE_WORKFLOW)
+    wf["1"]["inputs"]["image"] = image
+    wf["2"]["inputs"]["bg_removal_name"] = model
+    wf["6"]["inputs"]["filename_prefix"] = prefix
+    return wf, None
+
+
+def build_bg_replace_workflow(prompt, image, *, negative="", steps=25, cfg=1.0, seed=None,
+                              unet=None, clip=None, lora=None, lora_strength=1.0,
+                              model=BG_MODEL, grow=3, prefix="Qwen_image_2.1_gguf_background"):
+    """Keep the subject of `image` (an uploaded filename, multiples of 32) and let
+    Qwen-Image paint a new background from `prompt`: BiRefNet finds the subject, and
+    everything else is inpainted. Returns (workflow_dict, resolved_seed)."""
+    wf = load_workflow(BG_REPLACE_WORKFLOW)
+    if unet:
+        wf["1"]["inputs"]["unet_name"] = unet
+    if clip:
+        wf["2"]["inputs"]["clip_name"] = clip
+    wf["4"]["inputs"].update(prompt=BG_PROMPT.format(prompt=prompt), negative_prompt=negative)
+    _apply_lora(wf, lora, lora_strength)
+    seed = int(seed) if seed not in (None, "") else random.randint(0, MAX_SEED)
+    wf["6"]["inputs"].update(seed=seed, steps=int(steps), cfg=float(cfg))
+    wf["8"]["inputs"]["filename_prefix"] = prefix
+    wf["9"]["inputs"]["image"] = image
+    wf["30"]["inputs"]["bg_removal_name"] = model
+    wf["33"]["inputs"]["expand"] = int(grow)
+    return wf, seed
+
+
+def build_video_fx_workflow(video, *, effect="smooth", multiplier=2, color="green",
+                            bg_model=BG_MODEL, interp_model=INTERP_MODEL):
+    """Patch a video effect graph for `video` (an uploaded filename): "smooth" adds
+    in-between frames with RIFE (`multiplier` x the frame rate), "remove_bg" puts
+    the subject on a plain `color` background. Returns (workflow, None)."""
+    if effect == "smooth":
+        multiplier = int(multiplier)
+        if not 2 <= multiplier <= 4:
+            raise ValueError("multiplier must be 2, 3 or 4")
+        wf = load_workflow(VIDEO_SMOOTH_WORKFLOW)
+        wf["3"]["inputs"]["model_name"] = interp_model
+        wf["4"]["inputs"]["multiplier"] = multiplier
+        wf["5"]["inputs"]["values.b"] = multiplier
+    elif effect == "remove_bg":
+        if color not in BG_COLORS:
+            raise ValueError(f"color must be one of {sorted(BG_COLORS)}")
+        wf = load_workflow(VIDEO_BG_WORKFLOW)
+        wf["3"]["inputs"]["bg_removal_name"] = bg_model
+        wf["6"]["inputs"]["color"] = BG_COLORS[color]
+    else:
+        raise ValueError("effect must be 'smooth' or 'remove_bg'")
+    wf["1"]["inputs"]["file"] = video
+    return wf, None
+
+
+def build_upscale_workflow(image, *, scale=2, model=UPSCALE_MODEL, prefix="upscale"):
+    """Patch the upscale graph: `image` (an uploaded filename) through the 4x model,
+    then scaled down to `scale` (2 or 4) times the original. Returns (workflow, None)."""
+    scale = float(scale)
+    if not 1 <= scale <= 4:
+        raise ValueError("scale must be between 1 and 4")
+    wf = load_workflow(UPSCALE_WORKFLOW)
+    wf["1"]["inputs"]["image"] = image
+    wf["2"]["inputs"]["model_name"] = model
+    if scale == 4:
+        del wf["4"]
+        wf["5"]["inputs"]["images"] = ["3", 0]
+    else:
+        wf["4"]["inputs"]["scale_by"] = scale / 4
+    wf["5"]["inputs"]["filename_prefix"] = prefix
+    return wf, None
+
+
 def _get(server, path, timeout=10):
     with urllib.request.urlopen(f"{server}{path}", timeout=timeout) as r:
         return json.load(r)
@@ -226,9 +409,27 @@ def queue(server, wf, client_id, front=False):
             return json.load(r)["prompt_id"]
     except urllib.error.HTTPError as e:
         detail = e.read().decode(errors="replace")
-        raise ComfyError(f"ComfyUI rejected the workflow ({e.code}): {detail}") from e
+        raise ComfyError(_missing_model(detail) or
+                         f"ComfyUI rejected the workflow ({e.code}): {detail}") from e
     except urllib.error.URLError as e:
         raise ComfyError(f"Cannot reach ComfyUI at {server}: {e.reason}") from e
+
+
+def _missing_model(detail):
+    """A readable message when ComfyUI rejects a graph because a model file isn't in
+    its list (not downloaded, or ComfyUI not restarted since its folder was added)."""
+    try:
+        errors = json.loads(detail).get("node_errors", {})
+    except (ValueError, AttributeError):
+        return None
+    for node in errors.values():
+        for err in node.get("errors", []):
+            info = err.get("extra_info", {})
+            if err.get("type") == "value_not_in_list" and "name" in info.get("input_name", ""):
+                return (f"ComfyUI can't find the model {info.get('received_value')!r} "
+                        f"({node.get('class_type')}). Download it (see the README), or restart "
+                        "ComfyUI if you've just added it or its folder.")
+    return None
 
 
 def _unique(filename):
@@ -393,13 +594,55 @@ def inpaint(server, image_name, image_data, mask_data, *, reference_data=None,
                 timeout=timeout, on_progress=on_progress)
 
 
-def video(server, image_name=None, image_data=None, *, timeout=7200, on_progress=None, **params):
-    """Upload the start photo (if any), then render a Wan 2.2 video.
+def video(server, image_name=None, image_data=None, *, model="wan", timeout=7200,
+          on_progress=None, **params):
+    """Upload the start photo (if any), then render a Wan 2.2 video: `model` "wan"
+    (TI2V-5B) or "wanface" (I2V-A14B, test; needs the photo).
 
     Same return shape as generate(); "images" holds the .mp4.
     """
+    build = build_face_video_workflow if model == "wanface" else build_video_workflow
+    if model == "wanface" and not image_data:
+        raise ValueError("the face video model (test) needs a start photo")
     stored = upload_image(server, _unique(image_name), image_data) if image_data else None
-    return _run(server, *build_video_workflow(image=stored, **params), timeout=timeout,
+    return _run(server, *build(image=stored, **params), timeout=timeout,
+                on_progress=on_progress)
+
+
+def pose(server, image_name, image_data, *, timeout=600, on_progress=None, **params):
+    """Upload the pose photo, then draw the prompt in the pose found in it.
+
+    Same arguments and return shape as generate(); "images" holds the result and
+    the skeleton map.
+    """
+    stored = upload_image(server, _unique(image_name), image_data)
+    return _run(server, *build_pose_workflow(image=stored, **params), timeout=timeout,
+                on_progress=on_progress)
+
+
+def background(server, image_name, image_data, *, mode="remove", timeout=1800,
+               on_progress=None, **params):
+    """Upload a photo, then cut out its subject ("remove": transparent PNG) or give it
+    a new background from `prompt` ("replace")."""
+    stored = upload_image(server, _unique(image_name), image_data)
+    if mode == "replace":
+        built = build_bg_replace_workflow(image=stored, **params)
+    else:
+        built = build_bg_remove_workflow(stored)
+    return _run(server, *built, timeout=timeout, on_progress=on_progress)
+
+
+def video_fx(server, video_name, video_data, *, timeout=3600, on_progress=None, **params):
+    """Upload a video and run a video effect on it (see build_video_fx_workflow)."""
+    stored = upload_image(server, _unique(video_name), video_data)
+    return _run(server, *build_video_fx_workflow(stored, **params), timeout=timeout,
+                on_progress=on_progress)
+
+
+def upscale(server, image_name, image_data, *, timeout=1800, on_progress=None, **params):
+    """Upload a photo and enlarge it 2x or 4x with the upscale model."""
+    stored = upload_image(server, _unique(image_name), image_data)
+    return _run(server, *build_upscale_workflow(image=stored, **params), timeout=timeout,
                 on_progress=on_progress)
 
 
@@ -412,8 +655,18 @@ _PHASES = {
     "CLIPTextEncode": "Encoding the prompt", "TextEncodeQwenImage21": "Encoding the prompt",
     "ConditioningZeroOut": "Encoding the prompt",
     "VAEEncode": "Encoding the photo", "Wan22ImageToVideoLatent": "Encoding the photo",
-    "KSampler": "Sampling",
+    "KSampler": "Sampling", "KSamplerAdvanced": "Sampling",
+    "T5TokenizerOptions": "Encoding the prompt", "ModelSamplingAuraFlow": "Loading models",
+    "WanImageToVideo": "Encoding the photo",
     "VAEDecode": "Decoding", "ImageCompositeMasked": "Blending into the photo",
+    "CheckpointLoaderSimple": "Loading models", "UpscaleModelLoader": "Loading models",
+    "ResizeImageMaskNode": "Loading the photo",
+    "SDPoseKeypointExtractor": "Finding the pose", "SDPoseDrawKeypoints": "Finding the pose",
+    "ImageUpscaleWithModel": "Upscaling", "ImageScaleBy": "Upscaling",
+    "LoadBackgroundRemovalModel": "Loading models", "FrameInterpolationModelLoader": "Loading models",
+    "RemoveBackground": "Finding the subject", "FrameInterpolate": "Adding in-between frames",
+    "LoadVideo": "Loading the video", "GetVideoComponents": "Loading the video",
+    "JoinImageWithAlpha": "Cutting out",
     "CreateVideo": "Saving", "SaveVideo": "Saving", "SaveImage": "Saving",
 }
 

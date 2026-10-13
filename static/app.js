@@ -1,5 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const gallery = $("gallery"), msg = $("msg");
+const EMPTY_GALLERY = gallery.innerHTML;  // the welcome card, put back when the gallery empties
 let mode = "generate";
 
 async function checkHealth() {
@@ -18,37 +19,130 @@ checkHealth();
 setInterval(checkHealth, 15000);
 
 const MODES = {
-  generate: { label: "Prompt", button: "Generate", busy: "Generating…",
+  generate: { label: "Prompt", button: "Generate", busy: "Generating…", icon: "✦",
+              desc: "Text to image: Qwen-Image 2.1, Krea 2 Turbo, SDXL or Chroma.",
               placeholder: "a watercolour lighthouse on a rocky coast at dusk" },
-  edit:     { label: "Edit instruction", button: "Edit photo", busy: "Editing…",
+  edit:     { label: "Edit instruction", button: "Edit photo", busy: "Editing…", icon: "✎",
+              desc: "Describe the change; everything you don't mention stays.",
               placeholder: "change the dress to a red evening gown" },
-  inpaint:  { label: "Prompt for the painted area", button: "Inpaint", busy: "Inpainting…",
+  inpaint:  { label: "Prompt for the painted area", button: "Inpaint", busy: "Inpainting…", icon: "◐",
+              desc: "Paint a mask and regenerate only that part.",
               placeholder: "a red evening gown" },
-  uncrop:   { label: "Describe the wider scene (optional)", button: "Uncrop", busy: "Uncropping…",
+  uncrop:   { label: "Describe the wider scene (optional)", button: "Uncrop", busy: "Uncropping…", icon: "⤢",
+              desc: "Extend the photo past its borders.",
               placeholder: "a sunlit beach with palm trees and a boardwalk" },
-  video:    { label: "Describe the motion", button: "Make video", busy: "Rendering video…",
+  pose:     { label: "Describe the new picture", button: "Generate in this pose", busy: "Posing…", icon: "🕺",
+              desc: "Finds the pose in a photo (SDPose) and draws something new in exactly that pose.",
+              placeholder: "an astronaut in a white spacesuit on the moon, cinematic light" },
+  background: { label: "Describe the new background", button: "Remove background", busy: "Cutting out…", icon: "✂",
+              desc: "Cut out the subject (transparent PNG), or give it a new background.",
+              placeholder: "a sunlit beach at golden hour, palm trees, soft bokeh" },
+  relight:  { label: "Describe the light", button: "Relight", busy: "Relighting…", icon: "☀",
+              desc: "Change the lighting of a photo; people, pose and composition stay.",
+              placeholder: "warm golden-hour sunlight from the left, long soft shadows" },
+  upscale:  { label: "", button: "Upscale", busy: "Upscaling…", icon: "⇱",
+              desc: "Enlarge a photo 2× or 4× with real added detail.", placeholder: "" },
+  video:    { label: "Describe the motion", button: "Make video", busy: "Rendering video…", icon: "▶",
+              desc: "Bring a photo to life, or make a clip from text (Wan 2.2).",
               placeholder: "she slowly turns toward the camera and smiles, wind in her hair, slow push-in" },
+  videofx:  { label: "", button: "Apply to video", busy: "Processing video…", icon: "◎",
+              desc: "Smooth a video (RIFE in-between frames) or remove its background.", placeholder: "" },
 };
+const NEEDS_PHOTO = ["edit", "inpaint", "uncrop", "pose", "background", "relight", "upscale"];
 // Don't mention the grey padding here: told to "fill the grey border", the model paints grey.
 const UNCROP_DEFAULT = "Extend the photo outward, seamlessly continuing the scene, with the same " +
   "lighting, perspective, colours and photographic style.";
 
 function setMode(m) {
   mode = m;
-  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.mode === m));
+  $("modeSelect").value = m;
+  $("modeIcon").textContent = MODES[m].icon;
+  $("modeDesc").textContent = MODES[m].desc;
   document.querySelectorAll("[data-modes]").forEach((el) => {
     el.hidden = !el.dataset.modes.split(" ").includes(m) || (el.id === "preview" && !photo);
+  });
+  document.querySelectorAll("[data-not-modes]").forEach((el) => {
+    el.hidden = el.dataset.notModes.split(" ").includes(m);
   });
   $("promptLabel").textContent = MODES[m].label;
   $("prompt").placeholder = MODES[m].placeholder;
   $("go").textContent = MODES[m].button;
-  $("photoLabel").textContent = m === "video" ? "Start photo (optional)" : "Photo";
+  $("photoLabel").textContent = { video: "Start photo (optional)", pose: "Pose photo" }[m] || "Photo";
+  updateSubModes();
   refreshModelOptions();
   showVideoSize();
 }
-document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
-  setMode(t.dataset.mode);
-  window.history.replaceState(null, "", "#" + t.dataset.mode);  // link straight to a tab
+$("modeSelect").addEventListener("change", () => {
+  setMode($("modeSelect").value);
+  window.history.replaceState(null, "", "#" + mode);  // link straight to a tool
+});
+
+// ---- collapsible panel and sections (remembered per browser) ----
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+const sectionState = store.get("sections") || {};
+document.querySelectorAll("details.section").forEach((d) => {
+  const key = d.dataset.section;
+  if (key in sectionState) d.open = sectionState[key];
+  d.addEventListener("toggle", () => { sectionState[key] = d.open; store.set("sections", sectionState); });
+});
+function setPanel(collapsed) {
+  $("layout").classList.toggle("collapsed", collapsed);
+  $("expandPanel").hidden = !collapsed;
+  store.set("panelCollapsed", collapsed);
+}
+$("collapsePanel").addEventListener("click", () => setPanel(true));
+$("expandPanel").addEventListener("click", () => setPanel(false));
+if (store.get("panelCollapsed")) setPanel(true);
+
+// Background: remove (no prompt, no model) or replace (prompt + Qwen-Image settings).
+let bgMode = "remove", fxMode = "smooth";
+function updateSubModes() {
+  const removing = mode === "background" && bgMode === "remove";
+  for (const key of ["prompt", "settings", "models"])
+    document.querySelector(`[data-section="${key}"]`).hidden =
+      removing || ["upscale", "videofx"].includes(mode);
+  if (mode === "background") {
+    $("go").textContent = removing ? "Remove background" : "Replace background";
+    $("bgHint").textContent = removing ? "Cuts out the subject as a transparent PNG (BiRefNet)."
+      : "Keeps the subject exactly and paints a new background around it (BiRefNet + Qwen-Image).";
+  }
+  $("fxSmooth").hidden = fxMode !== "smooth";
+  $("fxBg").hidden = fxMode !== "remove_bg";
+}
+function segment(id, attr, set) {
+  document.querySelectorAll(`#${id} .seg-btn`).forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll(`#${id} .seg-btn`).forEach((x) => x.classList.toggle("active", x === b));
+    set(b.dataset[attr]);
+    updateSubModes();
+  }));
+}
+segment("bgSeg", "bg", (v) => { bgMode = v; });
+segment("fxSeg", "fx", (v) => { fxMode = v; });
+
+// Video FX input.
+let videoBlob = null, videoName = "";
+function loadVideo(file) {
+  videoBlob = file; videoName = file.name;
+  $("videoPreview").src = URL.createObjectURL(file);
+  $("videoPreview").hidden = false;
+}
+$("videoFile").addEventListener("change", () => { if ($("videoFile").files[0]) loadVideo($("videoFile").files[0]); });
+const vdrop = $("videoDrop");
+vdrop.addEventListener("dragover", (e) => { e.preventDefault(); vdrop.classList.add("over"); });
+vdrop.addEventListener("dragleave", () => vdrop.classList.remove("over"));
+vdrop.addEventListener("drop", (e) => {
+  e.preventDefault(); vdrop.classList.remove("over");
+  const file = [...e.dataTransfer.files].find((f) => f.type.startsWith("video/"));
+  if (file) loadVideo(file);
+});
+
+// Upscale factor (2x / 4x segmented control).
+document.querySelectorAll("#scaleSeg .seg-btn").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll("#scaleSeg .seg-btn").forEach((x) => x.classList.toggle("active", x === b));
+  $("scale").value = b.dataset.scale;
 }));
 
 // ---- model family (Generate picks; Edit/Inpaint/Uncrop use Qwen-Image; Video uses Wan) + LoRA ----
@@ -56,7 +150,7 @@ const FAMILIES = JSON.parse($("modelsData").textContent);
 const VIDEO_NEGATIVE = JSON.parse($("videoNegative").textContent);
 let shownFamily = null;
 
-function family() { return mode === "generate" ? $("model").value : mode === "video" ? "wan" : "qwen"; }
+function family() { return mode === "generate" ? $("model").value : mode === "video" ? $("videoModel").value : "qwen"; }
 
 function refreshModelOptions() {
   const fam = family();
@@ -67,12 +161,28 @@ function refreshModelOptions() {
     $(id).innerHTML = "";
     for (const f of files) $(id).add(new Option(f, f));
   }
+  $("clipBox").hidden = !m.clips.length;  // SDXL checkpoints carry their own encoders
   $("steps").value = m.steps;
   $("cfg").value = m.cfg || 1;
+  applyPreset();
   $("negativeBox").hidden = fam === "krea2";  // Krea 2 Turbo runs at cfg 1 with no negative
-  $("negative").placeholder = fam === "wan" ? VIDEO_NEGATIVE : "blurry, low quality";
+  $("negative").placeholder = fam.startsWith("wan") ? VIDEO_NEGATIVE : "blurry, low quality";
+  // Video length labels follow the model's frame rate (Wan 5B: 24 fps, face model: 16 fps).
+  const fps = m.fps || 24;
+  for (const o of $("frames").options) o.textContent = `${+((o.value - 1) / fps).toFixed(1)} s`;
+  $("videoHint").textContent = fam === "wanface"
+    ? "(test) Needs a start photo. Best for faces and keeping the person's identity. 16 fps."
+    : "With a photo it comes to life; without one the video comes from the prompt alone. 24 fps.";
 }
+// Some checkpoints need other steps / CFG than their family's default (e.g. non-Lightning SDXL).
+function applyPreset() {
+  const m = FAMILIES[shownFamily], preset = (m.presets || {})[$("unet").value];
+  $("steps").value = preset ? preset.steps : m.steps;
+  $("cfg").value = preset ? preset.cfg : (m.cfg || 1);
+}
+$("unet").addEventListener("change", applyPreset);
 $("model").addEventListener("change", refreshModelOptions);
+$("videoModel").addEventListener("change", refreshModelOptions);
 refreshModelOptions();
 
 fetch("/api/loras").then((r) => r.json()).then((j) => {
@@ -160,7 +270,7 @@ function loadPhoto(blob, name, { keepMask = false, remember = false } = {}) {
   const img = new Image();
   img.onload = () => {
     photo = img;
-    $("preview").hidden = !["edit", "video"].includes(mode);
+    $("preview").hidden = !["edit", "video", "pose", "upscale", "background", "relight"].includes(mode);
     layoutCanvases();
     drawUncrop();
     showVideoSize();
@@ -176,6 +286,16 @@ $("image").addEventListener("change", () => {
   if (!file) return;
   history = [];
   loadPhoto(file, file.name);
+});
+
+// Drop a photo onto the picker.
+const drop = $("drop");
+drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", (e) => {
+  e.preventDefault(); drop.classList.remove("over");
+  const file = [...e.dataTransfer.files].find((f) => f.type.startsWith("image/"));
+  if (file) { history = []; loadPhoto(file, file.name); }
 });
 
 $("clearPhoto").addEventListener("click", () => {
@@ -202,7 +322,7 @@ function showVideoSize() {
   $("vsizeInfo").textContent = `${w}×${h}` + ($("vsize").value.startsWith("match") && !photo ? " (no photo: landscape)" : "");
 }
 $("vsize").addEventListener("change", showVideoSize);
-if (MODES[location.hash.slice(1)]) setMode(location.hash.slice(1));
+setMode(MODES[location.hash.slice(1)] ? location.hash.slice(1) : "generate");
 
 $("prevPhoto").addEventListener("click", () => {
   const prev = history.pop();
@@ -358,7 +478,7 @@ function closeButton(card, forget, title = "Remove from the gallery (the file st
   close.title = title;
   close.addEventListener("click", () => {
     card.remove();
-    if (!gallery.children.length) gallery.innerHTML = '<div class="empty">Generated images and videos will appear here.</div>';
+    if (!gallery.children.length) gallery.innerHTML = EMPTY_GALLERY;
     if (forget) fetch(forget, { method: "DELETE" }).catch(() => {});
   });
   return close;
@@ -373,13 +493,17 @@ function resultCards(j, job) {
     const image = document.createElement(isVideo ? "video" : "img");
     image.src = isVideo ? img.url : img.data;
     if (isVideo) Object.assign(image, { controls: true, loop: true, muted: true, autoplay: true, playsInline: true });
-    else image.alt = "result";
+    else {
+      image.alt = "result";
+      image.addEventListener("click", () => openLightbox(img.url));
+    }
     const meta = document.createElement("div");
     meta.className = "meta";
     const seed = document.createElement("button");
     seed.type = "button"; seed.className = "link seed"; seed.textContent = "seed " + j.seed;
     seed.title = "Use this seed for the next run";
     seed.addEventListener("click", () => { $("seed").value = j.seed; });
+    if (j.seed == null) seed.hidden = true;
     const actions = document.createElement("span");
     actions.className = "actions";
     const reuse = document.createElement("button");
@@ -392,8 +516,36 @@ function resultCards(j, job) {
     });
     const dl = document.createElement("a");
     dl.href = img.url; dl.download = img.filename; dl.textContent = "download";
-    if (isVideo) actions.append(dl);
-    else actions.append(reuse, dl);
+    const up = document.createElement("button");
+    up.type = "button"; up.className = "link"; up.textContent = "upscale";
+    up.title = "Enlarge 2× with 4x-UltraSharp";
+    up.addEventListener("click", async () => {
+      const blob = await (await fetch(img.data)).blob();
+      const job = newJobId(), form = new FormData();
+      form.append("image", blob, img.filename);
+      form.append("scale", 2); form.append("job", job); form.append("client", clientId);
+      runJob(job, "upscale", `${img.filename} ×2`, ["/api/upscale", { method: "POST", body: form }]);
+    });
+    const cut = document.createElement("button");
+    cut.type = "button"; cut.className = "link"; cut.textContent = "cut out";
+    cut.title = "Remove the background (transparent PNG)";
+    cut.addEventListener("click", async () => {
+      const blob = await (await fetch(img.data)).blob();
+      const job = newJobId(), form = new FormData();
+      form.append("image", blob, img.filename);
+      form.append("mode", "remove"); form.append("job", job); form.append("client", clientId);
+      runJob(job, "background", `${img.filename}: remove background`, ["/api/background", { method: "POST", body: form }]);
+    });
+    const smooth = document.createElement("button");
+    smooth.type = "button"; smooth.className = "link"; smooth.textContent = "smooth";
+    smooth.title = "Double the frame rate with RIFE in-between frames";
+    smooth.addEventListener("click", async () => {
+      const blob = await (await fetch(img.url)).blob();
+      const job = newJobId();
+      runJob(job, "videofx", `${img.filename} ×2 smooth`, videoFxRequest(blob, img.filename, job, "smooth", 2));
+    });
+    if (isVideo) actions.append(smooth, dl);
+    else actions.append(reuse, up, cut, dl);
     meta.append(seed, actions);
     card.append(close, image, meta);
     return card;
@@ -442,7 +594,7 @@ function showProgress(card, busy, p) {
 
 function noteCard(text, isError, job) {
   const note = document.createElement("div");
-  note.className = "card job" + (isError ? " failed" : "");
+  note.className = "card job note" + (isError ? " failed" : "");
   const body = document.createElement("div");
   body.className = "job-body";
   body.textContent = text;
@@ -477,10 +629,35 @@ async function buildRequest(prompt, job) {
     form.append("resolution", $("resolution").value);
     return ["/api/edit", { method: "POST", body: form }];
   }
+  if (mode === "pose") {
+    form.append("image", photoBlob, photoName);
+    form.append("resolution", $("resolution").value);
+    return ["/api/pose", { method: "POST", body: form }];
+  }
+  if (mode === "upscale") {
+    form.append("image", photoBlob, photoName);
+    form.append("scale", $("scale").value);
+    return ["/api/upscale", { method: "POST", body: form }];
+  }
+  if (mode === "relight") {
+    form.append("image", photoBlob, photoName);
+    form.append("resolution", $("resolution").value);
+    form.append("kind", "relight");
+    return ["/api/edit", { method: "POST", body: form }];
+  }
+  if (mode === "background") {
+    form.append("mode", bgMode);
+    // replace inpaints, so it needs the photo at multiples of 32 (the inpaint canvas size)
+    if (bgMode === "replace") form.append("image", await toBlob(photoCanvas), photoName.replace(/\.[^.]+$/, "") + ".png");
+    else form.append("image", photoBlob, photoName);
+    return ["/api/background", { method: "POST", body: form }];
+  }
+  if (mode === "videofx") return videoFxRequest(videoBlob, videoName, job, fxMode);
   if (mode === "video") {
     const [w, h] = videoSize();
     form.append("width", w); form.append("height", h);
     form.append("frames", $("frames").value);
+    form.append("model", $("videoModel").value);
     if (photoBlob) form.append("image", photoBlob, photoName);
     return ["/api/video", { method: "POST", body: form }];
   }
@@ -513,23 +690,45 @@ $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
   let prompt = $("prompt").value.trim();
   const fail = (text) => { msg.className = "err"; msg.textContent = text; };
-  if (!["generate", "video"].includes(mode) && !photoBlob) return fail("Choose a photo first.");
+  if (NEEDS_PHOTO.includes(mode) && !photoBlob) return fail("Choose a photo first.");
+  if (mode === "video" && $("videoModel").value === "wanface" && !photoBlob)
+    return fail("The face video model (test) needs a start photo.");
   if (mode === "inpaint" && !painted) return fail("Paint over the area to change first.");
   if (mode === "uncrop") {
     if (!uncropGeometry()?.padded) return fail("Pick an aspect ratio or drag a slider to add canvas first.");
     prompt = prompt ? `${UNCROP_DEFAULT} The wider scene: ${prompt}` : UNCROP_DEFAULT;
   }
+  if (mode === "upscale") prompt = `${photoName} ×${$("scale").value}`;
+  if (mode === "background" && bgMode === "remove") prompt = `${photoName}: remove background`;
+  if (mode === "videofx") {
+    if (!videoBlob) return fail("Choose a video first.");
+    prompt = fxMode === "smooth" ? `${videoName} ×${$("multiplier").value} smooth` : `${videoName}: remove background`;
+  }
   if (!prompt) return fail(mode === "edit" ? "Enter an edit instruction first." : "Enter a prompt first.");
   msg.className = ""; msg.textContent = "";
 
   // Snapshot everything now, so changing the form afterwards doesn't affect this job.
-  const job = Date.now().toString(36) + Math.random().toString(36).slice(2);
-  const busy = MODES[mode].busy;
-  const request = await buildRequest(prompt, job);
+  const job = newJobId();
+  runJob(job, mode, prompt, await buildRequest(prompt, job));
+});
 
-  const card = jobCard(MODES[mode].button, prompt);
+function videoFxRequest(blob, name, job, effect, multiplier = $("multiplier").value) {
+  const form = new FormData();
+  form.append("video", blob, name);
+  form.append("effect", effect);
+  form.append("multiplier", multiplier);
+  form.append("color", $("fxColor").value);
+  form.append("job", job); form.append("client", clientId);
+  return ["/api/videofx", { method: "POST", body: form }];
+}
+
+function newJobId() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+// Show a job card for `request` (fetch arguments), track it, and swap in the result.
+async function runJob(job, kind, prompt, request) {
+  const card = jobCard(MODES[kind].button, prompt);
   addToGallery(card);
-  const stop = trackJob(card, job, busy);
+  const stop = trackJob(card, job, MODES[kind].busy);
 
   try {
     const r = await fetch(...request);
@@ -543,13 +742,31 @@ $("form").addEventListener("submit", async (e) => {
     stop();
     card.replaceWith(noteCard("Failed: " + err.message, true, job));
   }
-});
+  countGallery();
+}
 
 function addToGallery(card) {
   const empty = gallery.querySelector(".empty");
   if (empty) empty.remove();
   gallery.prepend(card);
+  countGallery();
 }
+
+function countGallery() {
+  const done = gallery.querySelectorAll(".card:not(.job)").length;
+  const running = gallery.querySelectorAll(".card.job:not(.note)").length;
+  $("galleryCount").textContent = [done && `${done} result${done > 1 ? "s" : ""}`,
+                                   running && `${running} running`].filter(Boolean).join(" · ");
+}
+new MutationObserver(countGallery).observe(gallery, { childList: true });
+
+function openLightbox(url) {
+  $("lightboxImg").src = url;
+  $("lightbox").hidden = false;
+}
+function closeLightbox() { $("lightbox").hidden = true; $("lightboxImg").src = ""; }
+$("lightbox").addEventListener("click", (e) => { if (e.target !== $("lightboxImg")) closeLightbox(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("lightbox").hidden) closeLightbox(); });
 
 // Wire a job card's Cancel button and poll its progress. Normally the caller waits on
 // the request itself and swaps the card; for a job `restored` from the server, the
@@ -607,3 +824,203 @@ function finishedCards(p) {
     }
   } catch {}
 })();
+
+// ---- views: Studio (tools + gallery) and Models (what's installed, downloads) ----
+function setView(view) {
+  document.querySelectorAll(".view-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+  $("layout").classList.toggle("models-mode", view === "models");
+  $("modelsView").hidden = view !== "models";
+  if (view === "models") loadModels();
+  else clearTimeout(modelsTimer);
+}
+document.querySelectorAll(".view-btn").forEach((b) => b.addEventListener("click", () => {
+  setView(b.dataset.view);
+  window.history.replaceState(null, "", b.dataset.view === "models" ? "#models" : "#" + mode);
+}));
+document.querySelectorAll("[data-view-link]").forEach((a) => a.addEventListener("click", (e) => {
+  e.preventDefault();
+  setView(a.dataset.viewLink);
+  window.history.replaceState(null, "", "#models");
+}));
+
+const gb = (n) => (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + " GB";
+let modelsTimer = null;
+
+async function loadModels() {
+  clearTimeout(modelsTimer);
+  let j;
+  try { j = await (await fetch("/api/models")).json(); }
+  catch { $("modelsInfo").textContent = "Server unreachable."; return; }
+  const busy = j.models.some((m) => m.progress && ["queued", "downloading"].includes(m.progress.state)
+                                    || m.files.some((f) => f.state === "writing"));
+  $("modelsInfo").innerHTML = (j.comfy ? "" : "<b>ComfyUI is offline</b>, so only files in <code>models/</code> are checked. ") +
+    `Downloads go to <code>${j.models_dir}</code>, which ComfyUI already reads; new models show up in the tools after a page reload.`;
+  const list = $("modelsList");
+  list.innerHTML = "";
+  for (const [title, items] of [["Base models", j.models.filter((m) => m.base)],
+                                ["Optional", j.models.filter((m) => !m.base)]]) {
+    const h = document.createElement("h3");
+    h.className = "models-group"; h.textContent = title;
+    const grid = document.createElement("div");
+    grid.className = "models-grid";
+    for (const m of items) grid.append(modelCard(m));
+    list.append(h, grid);
+  }
+  if (busy && !$("modelsView").hidden) modelsTimer = setTimeout(loadModels, 2000);
+}
+
+function modelCard(m) {
+  const card = document.createElement("div");
+  card.className = "model-card" + (m.installed ? " installed" : "");
+  const p = m.progress, active = p && ["queued", "downloading"].includes(p.state);
+  const writing = m.files.some((f) => f.state === "writing");
+  let badge, cls;
+  if (m.installed) { badge = "Installed"; cls = "ok"; }
+  else if (active) { badge = p.state === "queued" ? "Queued" : "Downloading"; cls = "busy"; }
+  else if (writing) { badge = "Downloading (script)"; cls = "busy"; }
+  else if (m.files.some((f) => f.state === "partial")) { badge = "Partly downloaded"; cls = "warn"; }
+  else { badge = "Not installed"; cls = "off"; }
+  card.innerHTML = `
+    <div class="model-top">
+      <span class="model-kind"></span>${m.test ? '<span class="test-badge">test</span>' : ""}
+      <span class="badge ${cls}">${badge}</span>
+    </div>
+    <h4></h4><p class="model-note"></p>
+    <div class="model-meta"><span></span><span class="lic"></span></div>
+    <ul class="model-files"></ul>`;
+  card.querySelector(".model-kind").textContent = m.kind;
+  card.querySelector("h4").textContent = m.name;
+  card.querySelector(".model-note").textContent = m.note;
+  card.querySelector(".model-meta span").textContent = gb(m.size) + (m.installed ? "" : ` · ${gb(m.missing)} to download`);
+  card.querySelector(".lic").textContent = m.license;
+  const ul = card.querySelector(".model-files");
+  for (const f of m.files) {
+    const li = document.createElement("li");
+    li.className = f.state;
+    li.textContent = `${f.name}`;
+    li.title = `${f.repo} → ${f.folder}/ (${gb(f.size)})`;
+    if (f.state !== "installed" && f.have) li.textContent += ` · ${Math.floor(100 * f.have / f.size)}%`;
+    ul.append(li);
+  }
+  if (active || (p && p.state === "failed")) {
+    const pct = p.total ? Math.floor(100 * p.done / p.total) : 0;
+    const bar = document.createElement("div");
+    bar.className = "model-progress";
+    bar.innerHTML = '<div class="progress"><div></div></div><div class="hint"></div>';
+    bar.querySelector(".progress > div").style.width = pct + "%";
+    bar.querySelector(".hint").textContent = p.state === "failed" ? "Failed: " + p.error
+      : p.state === "queued" ? "Waiting for the current download…"
+      : `${pct}% · ${p.file} · ${(p.speed / 1e6).toFixed(1)} MB/s`;
+    card.append(bar);
+  }
+  if (!m.installed && !writing) {
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = active ? "small" : "model-get";
+    btn.textContent = active ? "Cancel" : (m.files.some((f) => f.have) ? "Resume download" : "Download " + gb(m.missing));
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      await fetch(`/api/models/${m.id}/${active ? "cancel" : "download"}`, { method: "POST" }).catch(() => {});
+      loadModels();
+    });
+    card.append(btn);
+  }
+  return card;
+}
+if (location.hash === "#models") setView("models");
+
+// ---- model pickers with an info card: hover (or arrow to) a model to read about it ----
+function richSelect(select, infoFor) {
+  const wrap = document.createElement("div");
+  wrap.className = "rsel";
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.className = "rsel-btn";
+  btn.setAttribute("aria-haspopup", "listbox");
+  const menu = document.createElement("div");
+  menu.className = "rsel-menu"; menu.hidden = true;
+  const list = document.createElement("div");
+  list.className = "rsel-list"; list.setAttribute("role", "listbox");
+  const info = document.createElement("div");
+  info.className = "rsel-info";
+  menu.append(list, info);
+  wrap.append(btn);
+  document.body.append(menu);  // outside the sticky panel, so it layers above the gallery
+  select.classList.add("native-hidden");
+  select.after(wrap);
+  let active = 0;
+
+  const items = () => [...list.children];
+  const syncButton = () => {
+    const o = select.options[select.selectedIndex];
+    btn.textContent = o ? o.textContent : "";
+  };
+  function showInfo(i) {
+    active = i;
+    items().forEach((el, k) => el.classList.toggle("hover", k === i));
+    const o = select.options[i];
+    const m = infoFor(o.value);
+    if (!m) { info.innerHTML = ""; return; }
+    const a = m.about || {};
+    info.innerHTML = `
+      <div class="rsel-info-top"><b></b>${/\(test\)/.test(m.label) ? '<span class="test-badge">test</span>' : ""}
+        <span class="badge ${m.installed ? "ok" : "off"}">${m.installed ? "Installed" : "Not installed"}</span></div>
+      <p class="rsel-text"></p>
+      <dl><dt>Best for</dt><dd class="i-best"></dd><dt>Speed</dt><dd class="i-speed"></dd><dt>License</dt><dd class="i-lic"></dd></dl>
+      ${m.installed ? "" : '<a href="#models" class="rsel-get">Get it on the Models page →</a>'}`;
+    info.querySelector("b").textContent = m.label;
+    info.querySelector(".rsel-text").textContent = a.text || "";
+    info.querySelector(".i-best").textContent = a.best || "—";
+    info.querySelector(".i-speed").textContent = a.speed || `${m.steps} steps`;
+    info.querySelector(".i-lic").textContent = a.license || "—";
+    const get = info.querySelector(".rsel-get");
+    if (get) get.addEventListener("click", (e) => { e.preventDefault(); close(); setView("models"); });
+  }
+  function build() {
+    list.innerHTML = "";
+    [...select.options].forEach((o, i) => {
+      const el = document.createElement("div");
+      el.className = "rsel-opt" + (o.disabled ? " disabled" : "") + (i === select.selectedIndex ? " selected" : "");
+      el.setAttribute("role", "option");
+      el.textContent = o.textContent;
+      el.addEventListener("mouseenter", () => showInfo(i));
+      el.addEventListener("click", () => choose(i));
+      list.append(el);
+    });
+  }
+  function choose(i) {
+    if (select.options[i].disabled) return showInfo(i);  // not installed: just explain
+    select.selectedIndex = i;
+    select.dispatchEvent(new Event("change"));
+    syncButton();
+    close();
+  }
+  function open() {
+    build();
+    menu.hidden = false;
+    wrap.classList.add("open");
+    showInfo(select.selectedIndex);
+    // The panel scrolls (and would clip the menu), so the menu floats over the page.
+    const r = btn.getBoundingClientRect(), wide = innerWidth > 900;
+    const width = wide ? Math.min(640, innerWidth - r.left - 16) : r.width;
+    menu.style.cssText = `position:fixed;left:${r.left}px;width:${width}px;top:${r.bottom + 6}px`;
+    const h = menu.getBoundingClientRect().height;
+    if (r.bottom + 6 + h > innerHeight - 8 && r.top - 6 - h > 8) menu.style.top = `${r.top - 6 - h}px`;
+  }
+  function close() { menu.hidden = true; wrap.classList.remove("open"); }
+
+  btn.addEventListener("click", () => (menu.hidden ? open() : close()));
+  btn.addEventListener("keydown", (e) => {
+    if (["ArrowDown", "ArrowUp"].includes(e.key)) {
+      e.preventDefault();
+      if (menu.hidden) return open();
+      showInfo((active + (e.key === "ArrowDown" ? 1 : -1) + select.options.length) % select.options.length);
+    } else if (e.key === "Enter" && !menu.hidden) { e.preventDefault(); choose(active); }
+    else if (e.key === "Escape") close();
+  });
+  document.addEventListener("click", (e) => { if (!wrap.contains(e.target) && !menu.contains(e.target)) close(); });
+  $("form").addEventListener("scroll", close);
+  addEventListener("resize", close);
+  select.addEventListener("change", syncButton);
+  syncButton();
+}
+richSelect($("model"), (v) => FAMILIES[v]);
+richSelect($("videoModel"), (v) => FAMILIES[v]);

@@ -37,12 +37,12 @@ browser ─▶│  Generate │ Edit │ Inpaint │ Outpaint │ Upscale │ Re
 | 3 | **Inpaint** (mask a region, regenerate it) | base model | 📋 TODO |
 | 4 | **Outpaint / expand** (extend the canvas) | base model | ⬜ Planned |
 | 5 | **Restyle / img2img** | base model | ⬜ Planned |
-| 6 | **Upscale** (ESRGAN / Ultimate SD Upscale) | upscaler models | ⬜ Planned |
+| 6 | **Upscale** (2× / 4×) | 4x-UltraSharp V2 | ✅ Built |
 | 7 | **Background** remove / replace | segmentation + inpaint | ⬜ Planned |
-| 8 | **Control** (pose / depth / edges via ControlNet) | ControlNet | ⬜ Planned |
-| 9 | **Video** (text-to-video, image-to-video) | LTX-Video / WAN GGUF | ⬜ Planned |
+| 8 | **Control: pose** (depth / edges later) | SDPose + Qwen-Image reference | ✅ Pose built |
+| 9 | **Video** (text-to-video, image-to-video) | Wan 2.2 TI2V-5B; I2V-A14B faces (test) | ✅ Built |
 | 10 | **LoRA** stacking | any | 📋 TODO |
-| 11 | **Models** manager (download, switch quant/encoder/LoRA) | — | ⬜ Planned |
+| 11 | **Models** manager (download, switch quant/encoder/LoRA) | — | ✅ Built (Models page) |
 | 12 | **Gallery / history** (browse, re-run, delete outputs) | — | ⬜ Planned |
 
 (Per-module build steps live in `TODO.md`.)

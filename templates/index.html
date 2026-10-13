@@ -4,195 +4,316 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ config.AppName }}</title>
+<link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-<header>
-  <h1>{{ config.AppName }}</h1>
-  <span class="tag">Qwen-Image 2.1 · Krea 2 · Wan 2.2 · GGUF</span>
+<header class="topbar">
+  <a class="brand" href="/" title="{{ config.AppName }}">
+    <img src="{{ url_for('static', filename='favicon.svg') }}" alt="" width="30" height="30">
+    <span class="wordmark">{{ config.AppName }}</span>
+  </a>
+  <span class="tag">Qwen-Image 2.1 · Krea 2 · Wan 2.2 · SDPose · GGUF</span>
+  <nav class="toplinks">
+    <div class="viewswitch" role="tablist">
+      <button type="button" class="view-btn active" data-view="studio">Studio</button>
+      <button type="button" class="view-btn" data-view="models">Models</button>
+    </div>
+    <a href="https://cursedprograms.github.io/AI-Visual-Workshop/" target="_blank" rel="noopener" title="The project page on GitHub Pages">Project page &#8599;</a>
+  </nav>
   <div id="status"><span class="dot" id="dot"></span><span id="statusText">checking backend…</span></div>
 </header>
 
-<main>
+<main id="layout">
+  <section class="models-view" id="modelsView" hidden>
+    <div class="models-head">
+      <h2>Models</h2>
+      <p class="hint" id="modelsInfo">Checking what ComfyUI has…</p>
+    </div>
+    <div id="modelsList"></div>
+  </section>
+
   <form class="panel" id="form">
-    <div class="tabs" role="tablist">
-      <button type="button" class="tab active" data-mode="generate">Generate</button>
-      <button type="button" class="tab" data-mode="edit">Edit photo</button>
-      <button type="button" class="tab" data-mode="inpaint">Inpaint</button>
-      <button type="button" class="tab" data-mode="uncrop">Uncrop</button>
-      <button type="button" class="tab" data-mode="video">Video</button>
+    <div class="panel-head">
+      <label for="modeSelect" class="eyebrow">Tool</label>
+      <button type="button" class="icon-btn" id="collapsePanel" title="Hide the panel (more room for the gallery)">&laquo;</button>
     </div>
-
-    <div data-modes="edit inpaint uncrop video" hidden>
-      <label for="image" id="photoLabel">Photo</label>
-      <input id="image" type="file" accept="image/*">
-      <div class="photo-row" id="photoRow" hidden>
-        <span class="hint" id="photoInfo"></span>
-        <button type="button" class="small" id="prevPhoto" hidden>&larr; Previous photo</button>
-        <button type="button" class="small" id="clearPhoto" title="Remove the photo">&times;</button>
-      </div>
-      <img id="preview" class="preview" alt="" data-modes="edit video" hidden>
-    </div>
-
-    <div data-modes="video" hidden>
-      <div class="row">
-        <div>
-          <label for="vsize">Size</label>
-          <select id="vsize">
-            <option value="match">Match photo</option>
-            <option value="match-hd">Match photo, HD</option>
-            <option value="832x480">832&times;480</option>
-            <option value="480x832">480&times;832</option>
-            <option value="640x640">640&times;640</option>
-            <option value="1280x704">1280&times;704 HD</option>
-            <option value="704x1280">704&times;1280 HD</option>
-          </select>
-        </div>
-        <div>
-          <label for="frames">Length</label>
-          <select id="frames">
-            <option value="49">2 s</option>
-            <option value="81">3.4 s</option>
-            <option value="121">5 s</option>
-          </select>
-        </div>
-      </div>
-      <div class="hint" id="vsizeInfo"></div>
-      <div class="hint">With a photo it comes to life; without one the video comes from the prompt alone. 24 fps.</div>
-    </div>
-
-    <div data-modes="inpaint" hidden>
-      <div class="canvas-wrap" id="canvasWrap" hidden>
-        <canvas id="photoCanvas"></canvas>
-        <canvas id="maskOverlay"></canvas>
-      </div>
-      <div class="brush-row">
-        <label for="brush">Brush</label>
-        <input id="brush" type="range" min="5" max="150" value="40">
-        <button type="button" class="small" id="eraseToggle">Erase</button>
-        <button type="button" class="small" id="clearMask">Clear</button>
-      </div>
-      <div class="hint">Paint over the area to regenerate; everything else is kept exactly.</div>
-    </div>
-
-    <div data-modes="uncrop" hidden>
-      <canvas id="uncropCanvas" class="uncrop-canvas" hidden></canvas>
-      <label for="aspect">Expand to</label>
-      <select id="aspect">
-        <option value="">Custom (sliders)</option>
-        <option value="1">1:1 square</option>
-        <option value="1.3333">4:3</option>
-        <option value="0.75">3:4</option>
-        <option value="1.5">3:2</option>
-        <option value="0.6667">2:3</option>
-        <option value="1.7778">16:9</option>
-        <option value="0.5625">9:16</option>
-        <option value="2.3333">21:9</option>
-        <option value="zoom">Zoom out 1.5&times;</option>
-        <option value="zoom2">Zoom out 2&times;</option>
-      </select>
-      <div class="pad-grid">
-        <label>Left <input id="padL" type="range" min="0" max="100" value="0"><span id="padLv">0%</span></label>
-        <label>Right <input id="padR" type="range" min="0" max="100" value="0"><span id="padRv">0%</span></label>
-        <label>Top <input id="padT" type="range" min="0" max="100" value="0"><span id="padTv">0%</span></label>
-        <label>Bottom <input id="padB" type="range" min="0" max="100" value="0"><span id="padBv">0%</span></label>
-      </div>
-      <div class="hint">Extra canvas on each side, as % of the photo's width / height. The original
-        pixels are kept exactly; only the new border is generated.</div>
-    </div>
-
-    <div data-modes="generate">
-      <label for="model">Model</label>
-      <select id="model">
-        {% for key, m in models.items() %}<option value="{{ key }}">{{ m.label }}</option>{% endfor %}
+    <div class="mode-picker">
+      <span class="mode-icon" id="modeIcon" aria-hidden="true"></span>
+      <select id="modeSelect">
+        <option value="generate">Generate</option>
+        <option value="edit">Edit photo</option>
+        <option value="inpaint">Inpaint</option>
+        <option value="uncrop">Uncrop</option>
+        <option value="pose">Pose</option>
+        <option value="background">Background</option>
+        <option value="relight">Relight</option>
+        <option value="upscale">Upscale</option>
+        <option value="video">Video</option>
+        <option value="videofx">Video FX</option>
       </select>
     </div>
+    <p class="mode-desc" id="modeDesc"></p>
 
-    <div class="label-row">
-      <label for="prompt" id="promptLabel">Prompt</label>
-      <button type="button" class="small" id="undoEnhance" hidden>Undo</button>
-      <button type="button" class="small" id="enhance" title="Rewrite the prompt with the local LLM (Ollama)">&#10024; Enhance</button>
-    </div>
-    <textarea id="prompt" rows="4" placeholder="a watercolour lighthouse on a rocky coast at dusk">{{ config.Example or "" }}</textarea>
-    <div class="hint">Enter to run &middot; Shift+Enter for a new line</div>
+    <details class="section" data-section="photo" data-modes="edit inpaint uncrop pose background relight upscale video" open hidden>
+      <summary id="photoLabel">Photo</summary>
+      <div class="section-body">
+        <label class="drop" for="image" id="drop">
+          <input id="image" type="file" accept="image/*">
+          <span class="drop-text"><b>Choose a photo</b> or drop it here</span>
+        </label>
+        <div class="photo-row" id="photoRow" hidden>
+          <span class="hint" id="photoInfo"></span>
+          <button type="button" class="small" id="prevPhoto" hidden>&larr; Previous photo</button>
+          <button type="button" class="small" id="clearPhoto" title="Remove the photo">&times;</button>
+        </div>
+        <img id="preview" class="preview" alt="" data-modes="edit video pose upscale background relight" hidden>
+        <div class="hint" data-modes="pose" hidden>A photo of someone in the pose you want. The new picture copies the pose, not the person.</div>
 
-    <div id="negativeBox">
-      <label for="negative">Negative prompt <span class="hint">(only used when CFG &gt; 1)</span></label>
-      <textarea id="negative" rows="2" placeholder="blurry, low quality"></textarea>
-    </div>
+        <div data-modes="inpaint" hidden>
+          <div class="canvas-wrap" id="canvasWrap" hidden>
+            <canvas id="photoCanvas"></canvas>
+            <canvas id="maskOverlay"></canvas>
+          </div>
+          <div class="brush-row">
+            <label for="brush">Brush</label>
+            <input id="brush" type="range" min="5" max="150" value="40">
+            <button type="button" class="small" id="eraseToggle">Erase</button>
+            <button type="button" class="small" id="clearMask">Clear</button>
+          </div>
+          <div class="hint">Paint over the area to regenerate; everything else is kept exactly.</div>
+        </div>
 
-    <div class="row" data-modes="generate">
-      <div>
-        <label for="width">Width</label>
-        <input id="width" type="number" value="1024" min="256" max="2048" step="32">
+        <div data-modes="uncrop" hidden>
+          <canvas id="uncropCanvas" class="uncrop-canvas" hidden></canvas>
+          <label for="aspect">Expand to</label>
+          <select id="aspect">
+            <option value="">Custom (sliders)</option>
+            <option value="1">1:1 square</option>
+            <option value="1.3333">4:3</option>
+            <option value="0.75">3:4</option>
+            <option value="1.5">3:2</option>
+            <option value="0.6667">2:3</option>
+            <option value="1.7778">16:9</option>
+            <option value="0.5625">9:16</option>
+            <option value="2.3333">21:9</option>
+            <option value="zoom">Zoom out 1.5&times;</option>
+            <option value="zoom2">Zoom out 2&times;</option>
+          </select>
+          <div class="pad-grid">
+            <label>Left <input id="padL" type="range" min="0" max="100" value="0"><span id="padLv">0%</span></label>
+            <label>Right <input id="padR" type="range" min="0" max="100" value="0"><span id="padRv">0%</span></label>
+            <label>Top <input id="padT" type="range" min="0" max="100" value="0"><span id="padTv">0%</span></label>
+            <label>Bottom <input id="padB" type="range" min="0" max="100" value="0"><span id="padBv">0%</span></label>
+          </div>
+          <div class="hint">Extra canvas on each side, as % of the photo's width / height. The original
+            pixels are kept exactly; only the new border is generated.</div>
+        </div>
+
+        <div data-modes="background" hidden>
+          <label>Do</label>
+          <div class="seg" id="bgSeg">
+            <button type="button" class="seg-btn active" data-bg="remove">Remove</button>
+            <button type="button" class="seg-btn" data-bg="replace">Replace</button>
+          </div>
+          <div class="hint" id="bgHint">Cuts out the subject as a transparent PNG (BiRefNet).</div>
+        </div>
+
+        <div data-modes="upscale" hidden>
+          <label for="scale">Enlarge</label>
+          <div class="seg" id="scaleSeg">
+            <button type="button" class="seg-btn active" data-scale="2">2&times;</button>
+            <button type="button" class="seg-btn" data-scale="4">4&times;</button>
+          </div>
+          <input type="hidden" id="scale" value="2">
+          <div class="hint">4x-UltraSharp V2 adds real detail, not just pixels. The result is saved at full size in <code>output/</code>.</div>
+        </div>
       </div>
-      <div>
-        <label for="height">Height</label>
-        <input id="height" type="number" value="1024" min="256" max="2048" step="32">
-      </div>
-    </div>
+    </details>
 
-    <div data-modes="edit inpaint uncrop" hidden>
-      <label for="resolution">Resolution <span class="hint">(output keeps the photo's aspect ratio)</span></label>
-      <input id="resolution" type="number" value="1024" min="256" max="2048" step="32">
-    </div>
+    <details class="section" data-section="videofx" data-modes="videofx" open hidden>
+      <summary>Video</summary>
+      <div class="section-body">
+        <label class="drop" for="videoFile" id="videoDrop">
+          <input id="videoFile" type="file" accept="video/*">
+          <span class="drop-text"><b>Choose a video</b> or drop it here</span>
+        </label>
+        <video id="videoPreview" class="preview" controls muted loop playsinline hidden></video>
+        <label>Effect</label>
+        <div class="seg" id="fxSeg">
+          <button type="button" class="seg-btn active" data-fx="smooth">Smooth</button>
+          <button type="button" class="seg-btn" data-fx="remove_bg">Remove background</button>
+        </div>
+        <div id="fxSmooth">
+          <label for="multiplier">Frame rate</label>
+          <select id="multiplier">
+            <option value="2">2&times; (16 &rarr; 32 fps)</option>
+            <option value="3">3&times; (16 &rarr; 48 fps)</option>
+            <option value="4">4&times;</option>
+          </select>
+          <div class="hint">RIFE draws the in-between frames: smoother motion, same length.</div>
+        </div>
+        <div id="fxBg" hidden>
+          <label for="fxColor">New background</label>
+          <select id="fxColor">
+            <option value="green">Green screen</option>
+            <option value="black">Black</option>
+            <option value="white">White</option>
+            <option value="blue">Blue screen</option>
+          </select>
+          <div class="hint">BiRefNet on every frame. Short clips work best.</div>
+        </div>
+      </div>
+    </details>
 
-    <div class="row3">
-      <div>
-        <label for="steps">Steps</label>
-        <input id="steps" type="number" value="25" min="1" max="100">
+    <details class="section" data-section="prompt" data-not-modes="upscale videofx" open>
+      <summary id="promptLabel">Prompt</summary>
+      <div class="section-body">
+        <div class="label-row">
+          <span class="hint">Enter to run &middot; Shift+Enter for a new line</span>
+          <button type="button" class="small" id="undoEnhance" hidden>Undo</button>
+          <button type="button" class="small" id="enhance" title="Rewrite the prompt with the local LLM (Ollama)">&#10024; Enhance</button>
+        </div>
+        <textarea id="prompt" rows="4" aria-labelledby="promptLabel" placeholder="a watercolour lighthouse on a rocky coast at dusk">{{ config.Example or "" }}</textarea>
+        <div id="negativeBox">
+          <label for="negative">Negative prompt <span class="hint">(only used when CFG &gt; 1)</span></label>
+          <textarea id="negative" rows="2" placeholder="blurry, low quality"></textarea>
+        </div>
       </div>
-      <div>
-        <label for="cfg">CFG</label>
-        <input id="cfg" type="number" value="1" min="1" max="20" step="0.5">
-      </div>
-      <div data-modes="generate">
-        <label for="batch">Batch</label>
-        <input id="batch" type="number" value="1" min="1" max="8">
-      </div>
-      <div data-modes="inpaint" hidden>
-        <label for="denoise">Denoise</label>
-        <input id="denoise" type="number" value="1" min="0.1" max="1" step="0.05">
-      </div>
-    </div>
+    </details>
 
-    <div class="label-row">
-      <label for="seed">Seed <span class="hint">(blank = random)</span></label>
-      <button type="button" class="small" id="randomSeed" title="Pick a random seed (clear the box to get a new one every run)">&#127922; Random</button>
-    </div>
-    <input id="seed" type="number" placeholder="random" min="0">
+    <details class="section" data-section="video" data-modes="video" open hidden>
+      <summary>Clip</summary>
+      <div class="section-body">
+        <label for="videoModel">Video model</label>
+        <select id="videoModel">
+          <option value="wan">{{ families.wan.label }}</option>
+          <option value="wanface"{% if not families.wanface.installed %} disabled{% endif %}>{{ families.wanface.label }}{% if not families.wanface.installed %} (not installed){% endif %}</option>
+        </select>
+        <div class="row">
+          <div>
+            <label for="vsize">Size</label>
+            <select id="vsize">
+              <option value="match">Match photo</option>
+              <option value="match-hd">Match photo, HD</option>
+              <option value="832x480">832&times;480</option>
+              <option value="480x832">480&times;832</option>
+              <option value="640x640">640&times;640</option>
+              <option value="1280x704">1280&times;704 HD</option>
+              <option value="704x1280">704&times;1280 HD</option>
+            </select>
+          </div>
+          <div>
+            <label for="frames">Length</label>
+            <select id="frames">
+              <option value="49">2 s</option>
+              <option value="81">3.4 s</option>
+              <option value="121">5 s</option>
+            </select>
+          </div>
+        </div>
+        <div class="hint" id="vsizeInfo"></div>
+        <div class="hint" id="videoHint">With a photo it comes to life; without one the video comes from the prompt alone. 24 fps.</div>
+      </div>
+    </details>
 
-    <details>
+    <details class="section" data-section="settings" data-not-modes="upscale videofx" open>
+      <summary>Size &amp; quality</summary>
+      <div class="section-body">
+        <div data-modes="generate">
+          <label for="model">Model</label>
+          <select id="model">
+            {% for key, m in models.items() %}<option value="{{ key }}"{% if not m.installed %} disabled{% endif %}>{{ m.label }}{% if not m.installed %} (not installed){% endif %}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="row" data-modes="generate">
+          <div>
+            <label for="width">Width</label>
+            <input id="width" type="number" value="1024" min="256" max="2048" step="32">
+          </div>
+          <div>
+            <label for="height">Height</label>
+            <input id="height" type="number" value="1024" min="256" max="2048" step="32">
+          </div>
+        </div>
+        <div data-modes="edit inpaint uncrop pose background relight" hidden>
+          <label for="resolution">Resolution <span class="hint">(output keeps the photo's aspect ratio)</span></label>
+          <input id="resolution" type="number" value="1024" min="256" max="2048" step="32">
+        </div>
+        <div class="row3">
+          <div>
+            <label for="steps">Steps</label>
+            <input id="steps" type="number" value="25" min="1" max="100">
+          </div>
+          <div>
+            <label for="cfg">CFG</label>
+            <input id="cfg" type="number" value="1" min="1" max="20" step="0.5">
+          </div>
+          <div data-modes="generate">
+            <label for="batch">Batch</label>
+            <input id="batch" type="number" value="1" min="1" max="8">
+          </div>
+          <div data-modes="inpaint" hidden>
+            <label for="denoise">Denoise</label>
+            <input id="denoise" type="number" value="1" min="0.1" max="1" step="0.05">
+          </div>
+        </div>
+        <div class="label-row">
+          <label for="seed">Seed <span class="hint">(blank = random)</span></label>
+          <button type="button" class="small" id="randomSeed" title="Pick a random seed (clear the box to get a new one every run)">&#127922; Random</button>
+        </div>
+        <input id="seed" type="number" placeholder="random" min="0">
+      </div>
+    </details>
+
+    <details class="section" data-section="models" data-not-modes="upscale videofx">
       <summary>Models &amp; LoRA</summary>
-      <label for="unet">Diffusion model (GGUF)</label>
-      <select id="unet"></select>
-      <label for="clip">Text encoder</label>
-      <select id="clip"></select>
-      <div class="row">
-        <div>
-          <label for="lora">LoRA</label>
-          <select id="lora"><option value="">None</option></select>
+      <div class="section-body">
+        <label for="unet">Diffusion model (GGUF)</label>
+        <select id="unet"></select>
+        <div id="clipBox">
+          <label for="clip">Text encoder</label>
+          <select id="clip"></select>
         </div>
-        <div>
-          <label for="loraStrength">Strength</label>
-          <input id="loraStrength" type="number" value="1" min="-2" max="2" step="0.05">
+        <div class="row">
+          <div>
+            <label for="lora">LoRA</label>
+            <select id="lora"><option value="">None</option></select>
+          </div>
+          <div>
+            <label for="loraStrength">Strength</label>
+            <input id="loraStrength" type="number" value="1" min="-2" max="2" step="0.05">
+          </div>
         </div>
+        <div class="hint">Missing a model? Get it on the <a href="#models" data-view-link="models">Models</a> page.</div>
+        <div class="hint">LoRAs come from ComfyUI's <code>models/loras</code> (and extra_model_paths). Use one made for the selected model.</div>
       </div>
-      <div class="hint">LoRAs come from ComfyUI's <code>models/loras</code> (and extra_model_paths). Use one made for the selected model.</div>
     </details>
     <script id="modelsData" type="application/json">{{ families|tojson }}</script>
     <script id="videoNegative" type="application/json">{{ video_negative|tojson }}</script>
 
-    <button type="submit" id="go">Generate</button>
-    <div id="msg"></div>
+    <div class="go-bar">
+      <button type="submit" id="go">Generate</button>
+      <div id="msg"></div>
+    </div>
   </form>
 
-  <section>
+  <section class="gallery-wrap">
+    <div class="gallery-head">
+      <button type="button" class="icon-btn" id="expandPanel" title="Show the panel" hidden>&raquo;</button>
+      <h2>Gallery</h2>
+      <span class="count" id="galleryCount"></span>
+    </div>
     <div id="gallery" class="gallery">
-      <div class="empty">Generated images and videos will appear here.</div>
+      <div class="empty"><div class="empty-art">✦</div><h3>Nothing here yet</h3><p>Pick a tool, describe what you want and press <kbd>Enter</kbd>. Everything you make lands here and in <code>output/</code>.</p></div>
     </div>
   </section>
 </main>
+
+<div class="lightbox" id="lightbox" hidden>
+  <button type="button" class="icon-btn lightbox-close" id="lightboxClose" title="Close (Esc)">&times;</button>
+  <img id="lightboxImg" alt="">
+</div>
 
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

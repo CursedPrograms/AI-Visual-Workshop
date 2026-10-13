@@ -75,6 +75,56 @@ Krea 2 Turbo (12B DiT, June 2026) as an alternative text-to-image model, 8 steps
   use the base model.
 - Do all of this **after** the base text-to-image path is confirmed working end-to-end.
 
+## Pose and Upscale
+
+- [x] **Pose:** `workflows/qwen_image_2.1_gguf_pose_api.json` — ComfyUI core `SDPoseKeypointExtractor`
+      → `SDPoseDrawKeypoints` (skeleton saved as `pose_map_*`) → `TextEncodeQwenImage21` with the
+      skeleton as reference image 1. `POST /api/pose`, **Pose** tool. No ControlNet download.
+- [x] **Upscale:** `workflows/upscale_api.json` — `4x-UltraSharpV2` then `ImageScaleBy` for 2×.
+      `POST /api/upscale`, **Upscale** tool and an **upscale** link on every image result.
+- [ ] Pose: optional second photo for *who* (keep the person from photo B, pose from photo A).
+- [ ] Depth / edges control (same reference-image approach, or a Qwen-Image ControlNet).
+
+## Models page and extra models
+
+- [x] **Models page** (Studio / Models switch in the header): every model with installed / partly
+      downloaded / missing status, size and license; **Download** / **Resume** / **Cancel** run in
+      the server (`model_manager.py`, catalog in `model_catalog.py`), resumable, into `models/`.
+- [x] Model dropdowns mark models whose files ComfyUI doesn't have as *(not installed)*.
+- [ ] **Download (base):** RealVisXL V5 Lightning (6.9 GB) — paused, not started.
+- [ ] **Download (base, test):** Wan 2.2 I2V-A14B faces (test) — 14.4 GB, paused (VAE ~70 %).
+- [ ] **Download (base):** SDPose (Pose tool) — paused at ~18 %.
+- [x] **SDXL** family in Generate (`workflows/sdxl_t2i_api.json`): any SDXL checkpoint, per-file
+      steps/CFG presets (Lightning 6 steps / CFG 1.5; others 25 / 5).
+- [x] **Chroma1-HD** (optional, Apache 2.0, uncensored, Flux-based 8.9B): `workflows/chroma1_hd_gguf_t2i_api.json`,
+      GGUF Q4_K_M 5.6 GB + T5 + Flux VAE. Not downloaded.
+- [x] **Face video model (test):** Wan 2.2 I2V-A14B LightX2V 4-step (`workflows/wan2.2_i2v_a14b_face_test_gguf_api.json`),
+      **Video model** picker on the Video tool, needs a start photo, 16 fps. Not run yet (files not downloaded).
+- [ ] Optional models listed but not downloaded: Chroma1-HD, NoobAI-XL 1.1, Juggernaut XI, DMD2 LoRA.
+- [ ] Test each new model once its files are in; then drop the (test) mark from the face model if it holds up.
+
+## Background, Relight, Video FX (local versions of the Bria cloud nodes)
+
+- [x] **Background** tool: remove (BiRefNet → transparent PNG) / replace (BiRefNet mask → Qwen-Image
+      inpaints the background). **cut out** link on image results. Not run yet: BiRefNet (444 MB) not downloaded.
+- [x] **Relight** tool: `/api/edit` with `kind=relight`, the prompt wrapped to change only the light.
+- [x] **Video FX** tool: RIFE smoothing (2–4×, **smooth** link on video results) and per-frame
+      background removal onto a solid colour. Not run yet: RIFE (23 MB) / BiRefNet not downloaded.
+- [x] Bria nodes left out on purpose: they upload to Bria's cloud, cost Comfy.org credits and filter content.
+- [ ] Download BiRefNet + RIFE after the face model; restart ComfyUI once for the new folders.
+- [x] Model pickers show an info card on hover (best for, speed, license, installed).
+
+## Next tools
+
+- [ ] **Restyle** (img2img: photo → oil painting, anime, …)
+- [ ] **Gallery** of everything in `output/`
+- [ ] **Depth / edges** control
+
+## UI
+
+- [x] Tool dropdown instead of a tab row; collapsible sections; hideable panel; lightbox;
+      drag-and-drop photos; header link to the GitHub Pages site.
+
 ## Queue and jobs
 
 - [x] **Model reloading in the queue:** within Qwen (t2i/edit/inpaint/LoRA) nothing is re-read
