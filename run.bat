@@ -12,6 +12,6 @@ if not exist "%VENV_DIR%" (
 
 call "%~dp0start_comfy.bat"
 
-echo Starting AI Visual Workshop on http://127.0.0.1:5000
+echo Starting AI Visual Workshop on http://127.0.0.1:7870
 python app.py
 pause

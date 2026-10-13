@@ -347,7 +347,7 @@ run.bat
 `run.bat`, `run-lan.bat` and `run.ps1` first start ComfyUI in its own window if it isn't
 already answering (from `COMFYUI_DIR`, with the flags above), and wait for it to come up.
 Each script creates a `venv`, installs `requirements.txt` and launches the server at
-**http://127.0.0.1:5000**. Open it, confirm the status dot reads *ComfyUI connected*, type a
+**http://127.0.0.1:7870**. Open it, confirm the status dot reads *ComfyUI connected*, type a
 prompt and click **Generate**. To run it by hand:
 
 ```bash
@@ -356,7 +356,7 @@ python app.py
 ```
 
 To expose it on the whole local network instead of just this machine, use **`run-lan.bat`**
-(binds `0.0.0.0:5000`), or set `HOST=0.0.0.0` by hand.
+(binds `0.0.0.0:7870`), or set `HOST=0.0.0.0` by hand.
 
 ### Using the web UI
 
@@ -463,7 +463,7 @@ minute); while ComfyUI is rendering, the two share the CPU and it is slower. Avo
 models such as `qwen3:4b` — they spend the time and output on reasoning instead of the prompt.
 Without Ollama everything else works — the button just reports that it can't reach it.
 
-### Serve it as `http://qwen.flask:5000`
+### Serve it as `http://qwen.flask:7870`
 
 Give the server a friendly name on your LAN. Map `qwen.flask` to the host's IP — per device in
 its hosts file:
@@ -473,8 +473,8 @@ its hosts file:
 ```
 
 or network-wide with a local DNS entry (dnsmasq / Pi-hole: `address=/qwen.flask/192.168.0.101`).
-Open **port 5000** in the host's firewall so other devices can reach it. Then browse to
-`http://qwen.flask:5000` (use `http://`, and skip the `www.`).
+Open **port 7870** in the host's firewall so other devices can reach it. Then browse to
+`http://qwen.flask:7870` (use `http://`, and skip the `www.`).
 
 ### Environment variables
 
@@ -485,7 +485,7 @@ Open **port 5000** in the host's firewall so other devices can reach it. Then br
 | `COMFYUI_ARGS` | *(the flags in [Start ComfyUI](#start-comfyui))* | Flags the run scripts pass to `main.py` |
 | `MODELS_DIR` | `models/` in this repo | Where the Models page downloads to |
 | `HOST` | `127.0.0.1` | Interface Flask binds (`0.0.0.0` to expose on the LAN) |
-| `PORT` | `5000` | Port Flask binds |
+| `PORT` | `7870` | Port Flask binds (outside 5000–5999, which the DREAM Robotics fleet uses) |
 | `FLASK_DEBUG` | *(off)* | Any non-empty value enables Flask debug mode |
 | `OLLAMA_SERVER` | `http://127.0.0.1:11434` | Where Ollama is listening (✨ Enhance) |
 | `OLLAMA_MODEL` | `gemma3:4b-it-qat` | Model used to rewrite prompts (prefer a non-"thinking" model) |
@@ -518,7 +518,7 @@ pip install -r requirements.txt
 HOST=0.0.0.0 COMFY_SERVER=http://<gpu-pc-ip>:8188 python app.py
 ```
 
-Then browse to `http://<pi-ip>:5000`. The Pi cannot generate on its own — a 20B model needs
+Then browse to `http://<pi-ip>:7870`. The Pi cannot generate on its own — a 20B model needs
 the GPU PC — it just serves the page and relays requests.
 
 ## API
@@ -526,7 +526,7 @@ the GPU PC — it just serves the page and relays requests.
 **`POST /api/generate`** — JSON in, JSON out.
 
 ```bash
-curl -X POST http://127.0.0.1:5000/api/generate \
+curl -X POST http://127.0.0.1:7870/api/generate \
   -H "Content-Type: application/json" \
   -d '{"prompt": "a watercolour lighthouse at dusk", "width": 1344, "height": 768, "steps": 30}'
 ```
@@ -557,7 +557,7 @@ optional `resolution` (default 1024), `negative`, `steps`, `cfg`, `seed`, `unet`
 `lora_strength`, `job`.
 
 ```bash
-curl -X POST http://127.0.0.1:5000/api/edit \
+curl -X POST http://127.0.0.1:7870/api/edit \
   -F image=@photo.png -F "prompt=change the dress to a red evening gown" -F seed=42
 ```
 
@@ -567,7 +567,7 @@ masked area, plus optional `denoise` (default 1.0), `negative`, `steps`, `cfg`, 
 `clip`, `lora`, `lora_strength`, `job`.
 
 ```bash
-curl -X POST http://127.0.0.1:5000/api/inpaint \
+curl -X POST http://127.0.0.1:7870/api/inpaint \
   -F image=@photo_960x1088.png -F mask=@mask_960x1088.png -F "prompt=a blue sequined dress"
 ```
 
@@ -583,7 +583,7 @@ file (the first frame; without it, text-to-video), plus optional `width` / `heig
 `.mp4` is in `images` with `"video": true`, and `data` is its URL instead of base64.
 
 ```bash
-curl -X POST http://127.0.0.1:5000/api/video \
+curl -X POST http://127.0.0.1:7870/api/video \
   -F image=@photo.png -F "prompt=she turns toward the camera and smiles" -F frames=81
 ```
 
@@ -610,7 +610,7 @@ holds the result and the `pose_map_*.png` skeleton.
 optional `job`, `client`, `timeout`. `seed` in the response is `null`.
 
 ```bash
-curl -X POST http://127.0.0.1:5000/api/upscale -F image=@photo.png -F scale=4
+curl -X POST http://127.0.0.1:7870/api/upscale -F image=@photo.png -F scale=4
 ```
 
 **`POST /api/enhance`** — `{"prompt": "...", "mode": "generate"|"edit"|"inpaint"|"uncrop"|"video"}` →

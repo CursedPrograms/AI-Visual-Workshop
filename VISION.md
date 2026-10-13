@@ -26,7 +26,7 @@ browser ─▶│  Generate │ Edit │ Inpaint │ Outpaint │ Upscale │ Re
   adding a capability means adding a workflow + endpoint + tab, nothing more.
 - **One model store.** `models/` holds everything; a Models tab downloads/switches them.
 - **One gallery.** All outputs (images + video) land in `output/` with a browsable history.
-- **Runs on the LAN** as `http://qwen.flask:5000` so any device (or the robots) can use it.
+- **Runs on the LAN** as `http://qwen.flask:7870` so any device (or the robots) can use it.
 
 ## Modules
 

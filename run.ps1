@@ -31,5 +31,5 @@ if ($ComfyServer -notmatch "127\.0\.0\.1|localhost") {
     if ($up) { Write-Host "ComfyUI is up." } else { Write-Host "ComfyUI did not answer after 3 minutes - check its window." }
 }
 
-Write-Host "Starting AI Visual Workshop on http://127.0.0.1:5000"
+Write-Host "Starting AI Visual Workshop on http://127.0.0.1:7870"
 python app.py

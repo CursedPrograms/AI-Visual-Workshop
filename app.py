@@ -5,7 +5,7 @@ video workflows in this repo.
 ComfyUI must be running separately (see the README); this server talks to it
 over HTTP, so point COMFY_SERVER at it if it is not on the default port.
 
-    python app.py                 # http://127.0.0.1:5000
+    python app.py                 # http://127.0.0.1:7870
     COMFY_SERVER=http://host:8188 python app.py
 """
 import base64
@@ -612,6 +612,7 @@ def output(name):
 if __name__ == "__main__":
     app.run(
         host=os.environ.get("HOST", "127.0.0.1"),
-        port=int(os.environ.get("PORT", 5000)),
+        # 7870: ports 5000-5999 belong to the DREAM Robotics fleet (RIFT is on 5000)
+        port=int(os.environ.get("PORT", 7870)),
         debug=bool(os.environ.get("FLASK_DEBUG")),
     )

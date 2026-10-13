@@ -125,12 +125,12 @@
     <ol class="steps">
       <li>Install <a href="https://github.com/comfyanonymous/ComfyUI">ComfyUI</a> and the <a href="https://github.com/leejet/ComfyUI-GGUF">leejet ComfyUI-GGUF</a> nodes.</li>
       <li>Point ComfyUI at this repo's <code>models/</code> with <code>extra_model_paths.yaml</code>, then download the models from the app's <b>Models</b> page (or by hand; the README lists every file).</li>
-      <li>Run <code>run.bat</code> (or <code>run.ps1</code>) and open <code>http://127.0.0.1:5000</code>. It starts ComfyUI in its own window if it isn't running yet; with <code>run.sh</code>, start ComfyUI yourself first.</li>
+      <li>Run <code>run.bat</code> (or <code>run.ps1</code>) and open <code>http://127.0.0.1:7870</code>. It starts ComfyUI in its own window if it isn't running yet; with <code>run.sh</code>, start ComfyUI yourself first.</li>
     </ol>
 <pre><span class="p">$</span> run.bat
 <span class="p">$</span> python generate_video.py "she turns toward the camera and smiles" --image photo.png</pre>
     <h3 class="sub">Or script it</h3>
-<pre><span class="p">$</span> curl -X POST http://127.0.0.1:5000/api/video \
+<pre><span class="p">$</span> curl -X POST http://127.0.0.1:7870/api/video \
     -F image=@photo.png -F "prompt=she turns toward the camera and smiles" -F frames=81</pre>
   </section>
 </main>

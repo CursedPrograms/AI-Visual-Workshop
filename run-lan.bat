@@ -1,9 +1,9 @@
 @echo off
-rem Serve the UI on the whole local network (reachable as http://qwen.flask:5000).
+rem Serve the UI on the whole local network (reachable as http://qwen.flask:7870).
 setlocal
 set "VENV_DIR=venv"
 set "HOST=0.0.0.0"
-set "PORT=5000"
+set "PORT=7870"
 
 if not exist "%VENV_DIR%" (
     python -m venv "%VENV_DIR%"
