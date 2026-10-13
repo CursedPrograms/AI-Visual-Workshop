@@ -44,7 +44,15 @@ button:disabled { opacity: .55; cursor: wait; }
 #msg { margin-top: 14px; font-size: 13px; min-height: 18px; }
 #msg.err { color: var(--danger); }
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.card { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.card-close {
+  position: absolute; top: 6px; right: 6px; z-index: 1; width: 28px; height: 28px; margin: 0; padding: 0;
+  border-radius: 50%; background: rgba(0, 0, 0, .55); color: #fff; font-size: 18px; line-height: 28px;
+  opacity: .6; transition: opacity .15s;
+}
+.card:hover .card-close, .card-close:focus-visible { opacity: 1; }
+.card.job > .card-close + .job-body { padding-left: 40px; padding-right: 40px; }
+.card-close:hover { background: var(--danger); }
 .card img, .card video { width: 100%; display: block; background: var(--panel2); }
 .card .meta { padding: 8px 11px; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
 .card a { color: var(--accent2); text-decoration: none; }
@@ -73,6 +81,8 @@ button.small.active { border-color: var(--accent); }
 .photo-row .hint { flex: 1; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card .actions { display: flex; gap: 10px; }
 .card .meta button.link { width: auto; margin: 0; padding: 0; background: none; color: var(--accent2); font: inherit; font-size: 12px; font-weight: 400; }
+.card .meta button.link.seed { color: var(--muted); }
+.card .meta button.link.seed:hover { color: var(--accent2); }
 .progress { height: 8px; margin: 14px auto 6px; max-width: 320px; background: var(--panel2); border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }
 .progress > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .4s; }
 .card.job .job-body { padding: 22px 16px; text-align: center; color: var(--muted); font-size: 13px; }

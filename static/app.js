@@ -316,6 +316,10 @@ for (const id of PADS) $(id).addEventListener("input", () => { $("aspect").value
 // ---- prompt enhancer (local LLM via /api/enhance) ----
 let beforeEnhance = null;
 
+$("randomSeed").addEventListener("click", () => {
+  $("seed").value = Math.floor(Math.random() * 2 ** 32);
+});
+
 $("enhance").addEventListener("click", async () => {
   const prompt = $("prompt").value.trim();
   if (!prompt) { msg.className = "err"; msg.textContent = "Type a prompt to enhance first."; return; }
@@ -346,10 +350,25 @@ $("undoEnhance").addEventListener("click", () => {
 });
 
 // ---- results ----
-function resultCards(j) {
+// The × in a card's corner: removes the card, and tells the server to forget it (`forget`
+// is the DELETE URL, if any) so it doesn't come back on reload.
+function closeButton(card, forget, title = "Remove from the gallery (the file stays in output/)") {
+  const close = document.createElement("button");
+  close.type = "button"; close.className = "card-close"; close.innerHTML = "&times;";
+  close.title = title;
+  close.addEventListener("click", () => {
+    card.remove();
+    if (!gallery.children.length) gallery.innerHTML = '<div class="empty">Generated images and videos will appear here.</div>';
+    if (forget) fetch(forget, { method: "DELETE" }).catch(() => {});
+  });
+  return close;
+}
+
+function resultCards(j, job) {
   return j.images.map((img) => {
     const card = document.createElement("div");
     card.className = "card";
+    const close = closeButton(card, `/api/jobs/${job}?image=${encodeURIComponent(img.filename)}`);
     const isVideo = img.video || /\.(mp4|webm|mkv)$/i.test(img.filename);
     const image = document.createElement(isVideo ? "video" : "img");
     image.src = isVideo ? img.url : img.data;
@@ -357,8 +376,10 @@ function resultCards(j) {
     else image.alt = "result";
     const meta = document.createElement("div");
     meta.className = "meta";
-    const seed = document.createElement("span");
-    seed.textContent = "seed " + j.seed;
+    const seed = document.createElement("button");
+    seed.type = "button"; seed.className = "link seed"; seed.textContent = "seed " + j.seed;
+    seed.title = "Use this seed for the next run";
+    seed.addEventListener("click", () => { $("seed").value = j.seed; });
     const actions = document.createElement("span");
     actions.className = "actions";
     const reuse = document.createElement("button");
@@ -374,7 +395,7 @@ function resultCards(j) {
     if (isVideo) actions.append(dl);
     else actions.append(reuse, dl);
     meta.append(seed, actions);
-    card.append(image, meta);
+    card.append(close, image, meta);
     return card;
   });
 }
@@ -415,17 +436,17 @@ function showProgress(card, busy, p) {
   } else if (p.state === "queued") {
     label.textContent = p.ahead ? `Queued — ${p.ahead} job${p.ahead > 1 ? "s" : ""} ahead` : "Queued — starting next";
   } else {
-    label.textContent = { starting: "Uploading…", running: "Loading models and encoding…" }[p.state] || busy;
+    label.textContent = p.state === "running" ? (p.phase || "Working") + "…" : p.state === "starting" ? "Uploading…" : busy;
   }
 }
 
-function noteCard(text, isError) {
+function noteCard(text, isError, job) {
   const note = document.createElement("div");
   note.className = "card job" + (isError ? " failed" : "");
   const body = document.createElement("div");
   body.className = "job-body";
   body.textContent = text;
-  note.append(body);
+  note.append(closeButton(note, job && "/api/jobs/" + job, "Remove from the gallery"), body);
   return note;
 }
 
@@ -514,13 +535,13 @@ $("form").addEventListener("submit", async (e) => {
     const r = await fetch(...request);
     const j = await r.json();
     stop();
-    if (j.cancelled) return card.replaceWith(noteCard("Cancelled: " + prompt));
+    if (j.cancelled) return card.replaceWith(noteCard("Cancelled: " + prompt, false, job));
     if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
     if (!j.images.length) throw new Error("ComfyUI finished without a result (check its console).");
-    card.replaceWith(...resultCards(j));
+    card.replaceWith(...resultCards(j, job));
   } catch (err) {
     stop();
-    card.replaceWith(noteCard("Failed: " + err.message, true));
+    card.replaceWith(noteCard("Failed: " + err.message, true, job));
   }
 });
 
@@ -563,10 +584,10 @@ function trackJob(card, job, busy, restored = false) {
 // Cards for a job the server has finished (or forgotten, e.g. after a restart).
 function finishedCards(p) {
   if (p.state === "done" && p.result.images.length)
-    return resultCards({ ...p.result, images: p.result.images.map((img) => ({ ...img, data: img.url })) });
-  if (p.state === "cancelled") return [noteCard("Cancelled: " + p.prompt)];
-  if (p.state === "unknown") return [noteCard("Lost track of this job (the server restarted).", true)];
-  return [noteCard("Failed: " + (p.error || "ComfyUI finished without an image (check its console)."), true)];
+    return resultCards({ ...p.result, images: p.result.images.map((img) => ({ ...img, data: img.url })) }, p.id);
+  if (p.state === "cancelled") return [noteCard("Cancelled: " + p.prompt, false, p.id)];
+  if (p.state === "unknown") return [noteCard("Lost track of this job (the server restarted).", true, p.id)];
+  return [noteCard("Failed: " + (p.error || "ComfyUI finished without an image (check its console)."), true, p.id)];
 }
 
 // Rebuild the gallery from the jobs this browser sent before the page was (re)opened.

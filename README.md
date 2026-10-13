@@ -62,6 +62,7 @@ and saving them under `output/`.
 | `static/style.css`, `static/app.js` | The UI's styles and client logic |
 | `run.bat` / `run.ps1` / `run.sh` | Create the venv and start the server on localhost |
 | `run-lan.bat` | Start the server on the whole LAN (`0.0.0.0`) |
+| `start_comfy.bat` | Starts ComfyUI if it isn't running (called by `run.bat` / `run-lan.bat`) |
 | `extra_model_paths.example.yaml` | Template to point ComfyUI at this repo's `models/` |
 | `workflows/qwen_image_2.1_gguf_t2i.json` | Drag into the ComfyUI UI |
 | `workflows/qwen_image_2.1_gguf_t2i_api.json` | API-format text-to-image graph the server/CLI drive |
@@ -258,6 +259,8 @@ run.bat
 ./run.sh
 ```
 
+`run.bat`, `run-lan.bat` and `run.ps1` first start ComfyUI in its own window if it isn't
+already answering (from `COMFYUI_DIR`, with the flags above), and wait for it to come up.
 Each script creates a `venv`, installs `requirements.txt` and launches the server at
 **http://127.0.0.1:5000**. Open it, confirm the status dot reads *ComfyUI connected*, type a
 prompt and click **Generate**. To run it by hand:
@@ -301,7 +304,14 @@ Every image result has **use as photo**, which makes it the new working photo (f
 switches to Edit) so you can keep refining; **← Previous photo** steps back. That history lives
 in the browser tab — all results are also saved in `output/`.
 
+The **×** in a result's corner removes it from the gallery, and it stays gone when you reload
+the page. The file itself is kept in `output/`.
+
 **Enter** in the prompt box runs the current tab (Shift+Enter adds a new line).
+
+**Seed:** leave it blank for a new random seed every run. **🎲 Random** fills in a random seed
+that stays put, so you can change the prompt or settings and compare like for like; clear the box
+to go back to a fresh seed each run. Click **seed …** under any result to reuse that seed.
 
 **Queueing:** the Generate / Edit / Inpaint / Uncrop / Video button never locks — every press queues a new
 job, and ComfyUI runs them one after another. Each job gets a card at the top of the gallery
@@ -360,6 +370,8 @@ Open **port 5000** in the host's firewall so other devices can reach it. Then br
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `COMFY_SERVER` | `http://127.0.0.1:8188` | Where ComfyUI is listening |
+| `COMFYUI_DIR` | `C:\cc\ComfyUI` | ComfyUI folder the Windows run scripts start it from |
+| `COMFYUI_ARGS` | *(the flags in [Start ComfyUI](#start-comfyui))* | Flags the run scripts pass to `main.py` |
 | `HOST` | `127.0.0.1` | Interface Flask binds (`0.0.0.0` to expose on the LAN) |
 | `PORT` | `5000` | Port Flask binds |
 | `FLASK_DEBUG` | *(off)* | Any non-empty value enables Flask debug mode |
@@ -481,6 +493,9 @@ HTTP 409 `{"error": "Cancelled.", "cancelled": true}`.
 
 **`GET /api/loras`** — `{"loras": ["file.safetensors", ...]}`: every LoRA ComfyUI can see.
 
+**`DELETE /api/jobs/<job>?image=<filename>`** — removes a finished result from the gallery
+(without `image`, the whole job). The file stays in `output/`.
+
 **`GET /api/health`** — `{"comfy": "up"|"down", "server": "..."}`; HTTP 503 when ComfyUI is down.
 
 ## CLI (no server)
@@ -575,7 +590,7 @@ The Qwen-Image weights are under the Qwen Research License, Krea 2 under the Kre
 
 <br>
 <div align="center">
-© Cursed Entertainment 2026
+<a href="https://github.com/Farica-Kimora">Farica☆Kimora</a> © Cursed Entertainment 2026
 </div>
 <br>
 <div align="center">

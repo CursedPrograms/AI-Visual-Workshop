@@ -403,6 +403,33 @@ def video(server, image_name=None, image_data=None, *, timeout=7200, on_progress
                 on_progress=on_progress)
 
 
+# What the job is doing while ComfyUI runs a node of this class (shown on the job card).
+_PHASES = {
+    "UnetLoaderGGUF": "Loading models", "CLIPLoader": "Loading models",
+    "CLIPLoaderGGUF": "Loading models", "VAELoader": "Loading models",
+    "LoraLoaderModelOnly": "Loading models", "ModelSamplingSD3": "Loading models",
+    "LoadImage": "Loading the photo", "LoadImageMask": "Loading the photo",
+    "CLIPTextEncode": "Encoding the prompt", "TextEncodeQwenImage21": "Encoding the prompt",
+    "ConditioningZeroOut": "Encoding the prompt",
+    "VAEEncode": "Encoding the photo", "Wan22ImageToVideoLatent": "Encoding the photo",
+    "KSampler": "Sampling",
+    "VAEDecode": "Decoding", "ImageCompositeMasked": "Blending into the photo",
+    "CreateVideo": "Saving", "SaveVideo": "Saving", "SaveImage": "Saving",
+}
+
+
+def _phases(wf):
+    """Node id -> phase label for a workflow (video graphs decode frames, not an image)."""
+    video = any(n["class_type"] == "SaveVideo" for n in wf.values())
+    phases = {}
+    for nid, node in wf.items():
+        phase = _PHASES.get(node["class_type"], "Working")
+        if phase == "Decoding":
+            phase = "Decoding the video frames" if video else "Decoding the image"
+        phases[nid] = phase
+    return phases
+
+
 def _open_ws(server, client_id):
     """Connect to ComfyUI's event websocket, or return None if unavailable."""
     if websocket is None:
@@ -414,7 +441,7 @@ def _open_ws(server, client_id):
         return None
 
 
-def _watch(server, ws, prompt_id, timeout, on_progress):
+def _watch(server, ws, prompt_id, timeout, on_progress, phases):
     """Relay progress events for prompt_id until it finishes or fails.
 
     Returns early (and leaves the verdict to wait()) if the job runs past
@@ -450,7 +477,7 @@ def _watch(server, ws, prompt_id, timeout, on_progress):
                 return
             if deadline is None:
                 deadline = time.time() + timeout
-            on_progress({"state": "running"})
+            on_progress({"state": "running", "phase": phases.get(str(data["node"]), "Working")})
         elif kind == "progress":
             on_progress({"state": "running", "value": data["value"], "max": data["max"]})
         elif kind in ("execution_success", "execution_error", "execution_interrupted"):
@@ -465,7 +492,7 @@ def _run(server, wf, seed, *, timeout, on_progress=None):
         if ws:
             report = lambda event: on_progress({**event, "prompt_id": prompt_id})
             report({"state": "queued"})
-            _watch(server, ws, prompt_id, timeout, report)
+            _watch(server, ws, prompt_id, timeout, report, _phases(wf))
     finally:
         if ws:
             ws.close()

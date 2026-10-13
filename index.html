@@ -40,7 +40,7 @@
   <section id="tabs">
     <h2>Five tabs</h2>
     <div class="grid">
-      <div class="card"><span class="k">Generate</span><h3>Text to image</h3><p>Qwen-Image 2.1, or Krea 2 Turbo in 8 steps. Size, steps, CFG, batch, seed.</p></div>
+      <div class="card"><span class="k">Generate</span><h3>Text to image</h3><p>Qwen-Image 2.1, or Krea 2 Turbo in 8 steps. Size, steps, CFG, batch, and a seed you can roll &#127922; or reuse from any result.</p></div>
       <div class="card"><span class="k">Edit photo</span><h3>Describe the change</h3><p>&ldquo;Make the dress red.&rdquo; Qwen-Image 2.1 edits natively, keeping the photo's shape and everything you didn't mention.</p></div>
       <div class="card"><span class="k">Inpaint</span><h3>Repaint one area</h3><p>Paint a mask and regenerate only that part. Everything outside it is kept pixel for pixel.</p></div>
       <div class="card"><span class="k">Uncrop</span><h3>Past the borders</h3><p>Extend to 16:9, 1:1 or &ldquo;zoom out 2&times;&rdquo;. The model invents the surroundings; the original stays exact.</p></div>
@@ -81,10 +81,9 @@
     <ol class="steps">
       <li>Install <a href="https://github.com/comfyanonymous/ComfyUI">ComfyUI</a> and the <a href="https://github.com/leejet/ComfyUI-GGUF">leejet ComfyUI-GGUF</a> nodes.</li>
       <li>Download the models (the README lists every file) and point ComfyUI at them with <code>extra_model_paths.yaml</code>.</li>
-      <li>Start ComfyUI, then <code>run.bat</code> (or <code>run.ps1</code>, <code>run.sh</code>), and open <code>http://127.0.0.1:5000</code>.</li>
+      <li>Run <code>run.bat</code> (or <code>run.ps1</code>) and open <code>http://127.0.0.1:5000</code>. It starts ComfyUI in its own window if it isn't running yet; with <code>run.sh</code>, start ComfyUI yourself first.</li>
     </ol>
-<pre><span class="p">$</span> python main.py --disable-comfy-compiler --disable-dynamic-vram --disable-async-offload --cache-ram 6 16
-<span class="p">$</span> run.bat
+<pre><span class="p">$</span> run.bat
 <span class="p">$</span> python generate_video.py "she turns toward the camera and smiles" --image photo.png</pre>
     <h3 class="sub">Or script it</h3>
 <pre><span class="p">$</span> curl -X POST http://127.0.0.1:5000/api/video \

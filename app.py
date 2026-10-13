@@ -333,6 +333,23 @@ def _job_view(rec):
     return p
 
 
+@app.route("/api/jobs/<job>", methods=["DELETE"])
+def forget_job(job):
+    """Remove a finished job's result from the gallery (`?image=` just one file of a
+    batch), so it doesn't come back on reload. The file itself stays in output/."""
+    rec = JOBS.get(job)
+    if not rec or rec.get("state") not in ("done", "failed", "cancelled"):
+        return jsonify(forgotten=False)
+    image = request.args.get("image")
+    rest = [img for img in rec.get("result", {}).get("images", [])
+            if image and img["filename"] != image]
+    if rest:
+        rec["result"] = dict(rec["result"], images=rest)
+    else:
+        JOBS.pop(job, None)
+    return jsonify(forgotten=True)
+
+
 @app.route("/api/progress/<job>")
 def progress(job):
     return jsonify(_job_view(JOBS.get(job, {"state": "unknown"})))

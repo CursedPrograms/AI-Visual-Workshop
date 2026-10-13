@@ -12,6 +12,8 @@ if not exist "%VENV_DIR%" (
     call "%VENV_DIR%\Scripts\activate"
 )
 
+call "%~dp0start_comfy.bat"
+
 echo Serving on http://0.0.0.0:%PORT%  (LAN: http://qwen.flask:%PORT%)
 python app.py
 pause
