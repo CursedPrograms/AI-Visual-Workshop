@@ -71,6 +71,12 @@ optional Krea 2 Turbo for text-to-image, and optional Wan 2.2 TI2V-5B for video.
 </p>
 
 <p align="center">
+  <img src="docs/sample-background.jpg" alt="Before and after: same woman, the studio replaced by a golden-hour beach" width="49%">
+  <img src="docs/sample-relight.jpg" alt="Before and after: same photo relit with warm sunlight from the left" width="49%"><br>
+  <em>Background → Replace: “a sunlit beach at golden hour” · Relight: “warm golden-hour sunlight from the left”</em>
+</p>
+
+<p align="center">
   <img src="docs/face-video.gif" alt="Animated: the woman from the photo smiles, tucks her hair behind her ear and tilts her head" width="300"><br>
   <em>Video, face model (test): one photo → 3 s that keeps her face. Wan 2.2 I2V-A14B, 4 steps, 6 min on an RTX 2060</em>
 </p>
@@ -606,7 +612,8 @@ picture), plus optional `resolution` (1024), `negative`, `steps`, `cfg`, `seed`,
 `lora`, `lora_strength`, `job`, `client`, `timeout`. Same response as `/api/generate`; `images`
 holds the result and the `pose_map_*.png` skeleton.
 
-**`POST /api/upscale`** — multipart form: `image` and `scale` (`2` or `4`, default 2), plus
+**`POST /api/upscale`** — multipart form: `image`, `scale` (`2` or `4`, default 2) and `quality`
+(`fast`: UltraSharp V2 Lite, ~10 s; `best`: the full V2, minutes per image), plus
 optional `job`, `client`, `timeout`. `seed` in the response is `null`.
 
 ```bash

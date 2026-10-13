@@ -112,7 +112,12 @@ Krea 2 Turbo (12B DiT, June 2026) as an alternative text-to-image model, 8 steps
 - [x] **Video FX** tool: RIFE smoothing (2–4×, **smooth** link on video results) and per-frame
       background removal onto a solid colour. Not run yet: RIFE (23 MB) / BiRefNet not downloaded.
 - [x] Bria nodes left out on purpose: they upload to Bria's cloud, cost Comfy.org credits and filter content.
-- [x] BiRefNet + RIFE downloaded. [ ] Restart ComfyUI once so it sees the new folders, then test.
+- [x] BiRefNet + RIFE downloaded; ComfyUI restarted and sees them.
+- [x] **Tested 2026-10-14 on the RTX 2060:** Background remove 16 s, replace 11 min, Relight 10 min,
+      Upscale Fast 11 s (Best: 8 min, so Lite is now the default), green screen 52 s, Smooth 4 s
+      (16 → 32 fps). Fixed on the way: failed jobs were reported as done; LoadVideo's input preview
+      came back as a "result"; the Models page misread newer COMBO loaders; ComfyUI's RIFE crashes
+      ("same device") when only partly loaded, so Video FX frees VRAM and retries once.
 - [x] Model pickers show an info card on hover (best for, speed, license, installed).
 
 ## Next tools

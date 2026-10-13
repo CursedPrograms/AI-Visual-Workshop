@@ -40,7 +40,10 @@ RELIGHT_PROMPT = ("Relight this photo: {prompt}. Change only the lighting, light
                   "exactly the same.")
 # Video background colours (0xRRGGBB) by name.
 BG_COLORS = {"green": 0x00B140, "black": 0x000000, "white": 0xFFFFFF, "blue": 0x0047BB}
-UPSCALE_MODEL = "4x-UltraSharpV2.safetensors"  # a 4x model; smaller factors scale its output down
+# 4x models; smaller factors scale their output down. "fast" (Lite, ~10 s for 1024 px on an
+# RTX 2060) looks nearly the same as "best" (the full transformer model, ~8 min).
+UPSCALE_MODELS = {"fast": "4x-UltraSharpV2_Lite.safetensors", "best": "4x-UltraSharpV2.safetensors"}
+UPSCALE_MODEL = UPSCALE_MODELS["fast"]
 # Wraps the user's prompt for the pose graph: image 1 is the SDPose skeleton, not a picture.
 POSE_PROMPT = ("Image 1 is a pose skeleton map (OpenPose-style keypoints on black). Create a new, "
                "fully rendered image in which the person takes exactly this pose: same body, arm, "
@@ -380,9 +383,23 @@ def list_models(server, node, field):
     ("LoraLoaderModelOnly", "lora_name") -> every LoRA it can see."""
     try:
         info = _get(server, f"/object_info/{node}")
-        return list(info[node]["input"]["required"][field][0])
+        spec = info[node]["input"]["required"][field]
+        if spec[0] == "COMBO":  # newer nodes: ["COMBO", {"options": [...]}]
+            return list(spec[1].get("options", []))
+        return list(spec[0])
     except Exception:
         return []
+
+
+def free_memory(server):
+    """Ask ComfyUI to unload its cached models and free VRAM (its /free endpoint)."""
+    req = urllib.request.Request(f"{server}/free", data=json.dumps(
+        {"unload_models": True, "free_memory": True}).encode(),
+        headers={"Content-Type": "application/json"})
+    try:
+        urllib.request.urlopen(req, timeout=30).close()
+    except urllib.error.URLError as e:
+        raise ComfyError(f"Cannot reach ComfyUI at {server}: {e.reason}") from e
 
 
 def ping(server, timeout=3):
@@ -525,7 +542,7 @@ def wait(server, prompt_id, timeout=600, poll=1.0):
         try:
             hist = _get(server, f"/history/{prompt_id}")
             if prompt_id in hist:
-                return hist[prompt_id]
+                return _check_failed(hist[prompt_id])
             state = _queue_state(server, prompt_id)
         except urllib.error.URLError as e:
             raise ComfyError(f"Lost contact with ComfyUI: {e.reason}") from e
@@ -544,12 +561,30 @@ def wait(server, prompt_id, timeout=600, poll=1.0):
         time.sleep(poll)
 
 
+def _check_failed(record):
+    """Raise ComfyError if the job ended in an error (a node crashed), with the node and
+    its message; otherwise return the record. Some outputs may exist even then."""
+    status = record.get("status", {})
+    if status.get("status_str") != "error":
+        return record
+    for kind, data in status.get("messages", []):
+        if kind == "execution_error":
+            msg = (data.get("exception_message") or "").strip().splitlines()
+            raise ComfyError(f"ComfyUI's {data.get('node_type', 'node')} failed: "
+                             f"{msg[0] if msg else data.get('exception_type', 'error')}")
+    raise ComfyError("ComfyUI reported an error for this job (see its console).")
+
+
 def collect_images(server, record):
     """Download every SaveImage / SaveVideo output from a finished history record
-    (ComfyUI lists saved videos under "images" too, and some nodes use "gifs")."""
+    (ComfyUI lists saved videos under "images" too, and some nodes use "gifs").
+    Only saved results (type "output"): a LoadVideo/LoadImage preview of the input
+    is listed too, as type "input" or "temp", and isn't a result."""
     images = []
     for node in record.get("outputs", {}).values():
         for img in node.get("images", []) + node.get("gifs", []) + node.get("videos", []):
+            if img.get("type", "output") != "output":
+                continue
             query = urllib.parse.urlencode(img)
             with urllib.request.urlopen(f"{server}/view?{query}") as r:
                 images.append((img["filename"], r.read()))
@@ -635,8 +670,18 @@ def background(server, image_name, image_data, *, mode="remove", timeout=1800,
 def video_fx(server, video_name, video_data, *, timeout=3600, on_progress=None, **params):
     """Upload a video and run a video effect on it (see build_video_fx_workflow)."""
     stored = upload_image(server, _unique(video_name), video_data)
-    return _run(server, *build_video_fx_workflow(stored, **params), timeout=timeout,
-                on_progress=on_progress)
+    try:
+        return _run(server, *build_video_fx_workflow(stored, **params), timeout=timeout,
+                    on_progress=on_progress)
+    except ComfyError as e:
+        # ComfyUI's RIFE keeps one weight (ResConv.beta) outside its GPU-casting ops, so when
+        # VRAM is tight and the model is only partly loaded it fails with "Expected all
+        # tensors to be on the same device". Unloading the cached models first avoids it.
+        if "same device" not in str(e):
+            raise
+        free_memory(server)
+        return _run(server, *build_video_fx_workflow(stored, **params), timeout=timeout,
+                    on_progress=on_progress)
 
 
 def upscale(server, image_name, image_data, *, timeout=1800, on_progress=None, **params):

@@ -121,6 +121,8 @@ function segment(id, attr, set) {
 }
 segment("bgSeg", "bg", (v) => { bgMode = v; });
 segment("fxSeg", "fx", (v) => { fxMode = v; });
+let upscaleQuality = "fast";
+segment("qualitySeg", "quality", (v) => { upscaleQuality = v; });
 
 // Video FX input.
 let videoBlob = null, videoName = "";
@@ -637,6 +639,7 @@ async function buildRequest(prompt, job) {
   if (mode === "upscale") {
     form.append("image", photoBlob, photoName);
     form.append("scale", $("scale").value);
+    form.append("quality", upscaleQuality);
     return ["/api/upscale", { method: "POST", body: form }];
   }
   if (mode === "relight") {

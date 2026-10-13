@@ -499,6 +499,7 @@ def upscale():
         return jsonify(error="An image file is required."), 400
     f = request.form
     scale = f.get("scale", 2)
+    quality = "best" if f.get("quality") == "best" else "fast"
     name = Path(upload.filename).name
 
     return _run_job("upscale", f"{name} ×{scale}", f.get("job"), f.get("client"), lambda on_progress:
@@ -507,6 +508,7 @@ def upscale():
             name,
             upload.read(),
             scale=scale,
+            model=comfy_client.UPSCALE_MODELS[quality],
             timeout=int(f.get("timeout", 1800)),
             on_progress=on_progress,
         ))

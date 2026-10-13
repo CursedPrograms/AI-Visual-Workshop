@@ -126,7 +126,12 @@
             <button type="button" class="seg-btn" data-scale="4">4&times;</button>
           </div>
           <input type="hidden" id="scale" value="2">
-          <div class="hint">4x-UltraSharp V2 adds real detail, not just pixels. The result is saved at full size in <code>output/</code>.</div>
+          <label>Quality</label>
+          <div class="seg" id="qualitySeg">
+            <button type="button" class="seg-btn active" data-quality="fast">Fast</button>
+            <button type="button" class="seg-btn" data-quality="best">Best (slow)</button>
+          </div>
+          <div class="hint">4x-UltraSharp adds real detail, not just pixels. Fast takes seconds; Best looks a touch smoother but takes minutes. The result is saved at full size in <code>output/</code>.</div>
         </div>
       </div>
     </details>

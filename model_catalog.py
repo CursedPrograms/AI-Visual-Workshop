@@ -106,9 +106,15 @@ CATALOG = [
      "files": [
          hf("Comfy-Org/frame_interpolation", "frame_interpolation/rife_v4.26.safetensors", "frame_interpolation", 22674688),
      ]},
-    {"id": "ultrasharp", "name": "4x-UltraSharp V2", "kind": "Tool", "base": True,
+    {"id": "ultrasharp", "name": "4x-UltraSharp V2 Lite", "kind": "Tool", "base": True,
      "license": "CC BY-NC-SA 4.0 (non-commercial)",
-     "note": "The Upscale tool's model.",
+     "note": "The Upscale tool's fast model: about 10 s per image on a 6 GB card.",
+     "files": [
+         hf("Kim2091/UltraSharpV2", "4x-UltraSharpV2_Lite.safetensors", "upscale_models", 29590776),
+     ]},
+    {"id": "ultrasharp_best", "name": "4x-UltraSharp V2 (best quality)", "kind": "Tool", "base": False,
+     "license": "CC BY-NC-SA 4.0 (non-commercial)",
+     "note": "Upscale's \"Best\" setting: a touch smoother than Lite, but minutes per image instead of seconds.",
      "files": [
          hf("Kim2091/UltraSharpV2", "4x-UltraSharpV2.safetensors", "upscale_models", 139792588),
      ]},

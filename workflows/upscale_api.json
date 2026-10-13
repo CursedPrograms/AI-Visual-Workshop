@@ -8,7 +8,7 @@
   "2": {
     "class_type": "UpscaleModelLoader",
     "inputs": {
-      "model_name": "4x-UltraSharpV2.safetensors"
+      "model_name": "4x-UltraSharpV2_Lite.safetensors"
     }
   },
   "3": {
