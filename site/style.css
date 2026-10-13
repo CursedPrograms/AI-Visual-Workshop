@@ -64,6 +64,13 @@ ol.steps li::marker { color: var(--accent); font-family: var(--mono); }
 .samples img { display: block; width: 100%; height: 240px; object-fit: cover; }
 .samples figcaption { font-size: 13px; color: var(--sub); padding: 8px 12px; }
 
+/* GIF + text side by side */
+.pair { display: flex; flex-wrap: wrap; align-items: center; gap: 22px 30px; margin-top: 22px; }
+.pair .shot.gif { margin: 0; flex: 0 0 auto; max-width: 300px; box-shadow: 0 0 60px rgba(124, 92, 255, .25); }
+.pair-text { flex: 1 1 280px; }
+.pair-text .k { font: 11px var(--mono); letter-spacing: .15em; text-transform: uppercase; color: var(--accent); }
+.pair-text h3 { margin: 6px 0 10px; font-size: 22px; }
+
 /* footer */
 footer { border-top: 1px solid var(--line); margin-top: 56px; padding: 44px 0 56px; text-align: center; color: var(--sub); font-size: 14px; }
 footer .links { display: flex; flex-wrap: wrap; gap: 8px 22px; justify-content: center; margin-bottom: 18px; }

@@ -71,6 +71,11 @@ optional Krea 2 Turbo for text-to-image, and optional Wan 2.2 TI2V-5B for video.
 </p>
 
 <p align="center">
+  <img src="docs/face-video.gif" alt="Animated: the woman from the photo smiles, tucks her hair behind her ear and tilts her head" width="300"><br>
+  <em>Video, face model (test): one photo → 3 s that keeps her face. Wan 2.2 I2V-A14B, 4 steps, 6 min on an RTX 2060</em>
+</p>
+
+<p align="center">
   <img src="docs/ui-model-info.jpg" alt="Model picker with an info card" width="49%">
   <img src="docs/ui-models.jpg" alt="The Models page" width="49%">
 </p>

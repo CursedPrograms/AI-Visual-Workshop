@@ -92,7 +92,8 @@ Krea 2 Turbo (12B DiT, June 2026) as an alternative text-to-image model, 8 steps
       the server (`model_manager.py`, catalog in `model_catalog.py`), resumable, into `models/`.
 - [x] Model dropdowns mark models whose files ComfyUI doesn't have as *(not installed)*.
 - [ ] **Download (base):** RealVisXL V5 Lightning (6.9 GB) — paused, not started.
-- [ ] **Download (base, test):** Wan 2.2 I2V-A14B faces (test) — 14.4 GB, paused (VAE ~70 %).
+- [x] **Download (base, test):** Wan 2.2 I2V-A14B faces (test) — 14.4 GB, SHA-256 verified.
+- [x] **Face model (test) first run** (2026-10-13): demo portrait, 480×832, 49 frames, 6 min on the RTX 2060; identity held through a smile, hair tuck and head tilt. Keep the (test) mark until a few more portraits.
 - [ ] **Download (base):** SDPose (Pose tool) — paused at ~18 %.
 - [x] **SDXL** family in Generate (`workflows/sdxl_t2i_api.json`): any SDXL checkpoint, per-file
       steps/CFG presets (Lightning 6 steps / CFG 1.5; others 25 / 5).
@@ -111,7 +112,7 @@ Krea 2 Turbo (12B DiT, June 2026) as an alternative text-to-image model, 8 steps
 - [x] **Video FX** tool: RIFE smoothing (2–4×, **smooth** link on video results) and per-frame
       background removal onto a solid colour. Not run yet: RIFE (23 MB) / BiRefNet not downloaded.
 - [x] Bria nodes left out on purpose: they upload to Bria's cloud, cost Comfy.org credits and filter content.
-- [ ] Download BiRefNet + RIFE after the face model; restart ComfyUI once for the new folders.
+- [x] BiRefNet + RIFE downloaded. [ ] Restart ComfyUI once so it sees the new folders, then test.
 - [x] Model pickers show an info card on hover (best for, speed, license, installed).
 
 ## Next tools
