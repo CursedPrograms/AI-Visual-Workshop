@@ -2,7 +2,7 @@
 # the weights from this repo's models/ folder instead of its own.
 # Edit base_path to the absolute path of this repo's models/ directory.
 qwen_image_gguf:
-    base_path: C:/cc/Qwen-Image-2.1-Uncensored-GGUF/models
+    base_path: C:/cc/AI-Visual-Workshop/models
     diffusion_models: diffusion_models
     unet: diffusion_models
     text_encoders: text_encoders
@@ -14,6 +14,16 @@ qwen_image_gguf:
 # its files, laid out as diffusion_models/ text_encoders/ vae/ loras/.
 krea2:
     base_path: F:/AIModels/krea2
+    diffusion_models: diffusion_models
+    unet: diffusion_models
+    text_encoders: text_encoders
+    clip: text_encoders
+    vae: vae
+    loras: loras
+
+# Optional: Wan 2.2 TI2V-5B (the Video tab). Same layout.
+wan22:
+    base_path: F:/AIModels/wan22
     diffusion_models: diffusion_models
     unet: diffusion_models
     text_encoders: text_encoders

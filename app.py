@@ -1,7 +1,7 @@
-"""Flask server for Qwen-Image 2.1 GGUF.
+"""Flask server for AI Visual Workshop.
 
-A web UI and JSON API over the ComfyUI text-to-image, image-edit and inpaint
-workflows in this repo.
+A web UI and JSON API over the ComfyUI text-to-image, image-edit, inpaint and
+video workflows in this repo.
 ComfyUI must be running separately (see the README); this server talks to it
 over HTTP, so point COMFY_SERVER at it if it is not on the default port.
 
@@ -63,6 +63,27 @@ MODELS = {
     },
 }
 
+# Video: Wan 2.2 TI2V-5B (text-to-video, or image-to-video from a start photo).
+VIDEO = {
+    "label": "Wan 2.2 TI2V-5B",
+    "steps": 20,
+    "cfg": 5.0,
+    "unets": [
+        "Wan2.2-TI2V-5B-Q5_K_M.gguf",
+        "Wan2.2-TI2V-5B-Q4_K_M.gguf",
+        "Wan2.2-TI2V-5B-Q6_K.gguf",
+        "Wan2.2-TI2V-5B-Q8_0.gguf",
+    ],
+    "clips": [
+        "umt5-xxl-encoder-Q5_K_M.gguf",
+        "umt5-xxl-encoder-Q8_0.gguf",
+    ],
+}
+VIDEO_NEGATIVE = (
+    "blurry, low quality, worst quality, jpeg artifacts, static, frozen frame, overexposed, "
+    "deformed, distorted face, extra fingers, malformed hands, bad anatomy, watermark, text, subtitles"
+)
+
 app = Flask(__name__)
 
 # Every job submitted with a `job` id, by id: kind, prompt, the browser that sent it
@@ -106,6 +127,8 @@ def index():
         config=CONFIG,
         server=COMFY_SERVER,
         models=MODELS,
+        families=dict(MODELS, wan=VIDEO),
+        video_negative=VIDEO_NEGATIVE,
     )
 
 
@@ -223,6 +246,40 @@ def inpaint():
         ))
 
 
+@app.route("/api/video", methods=["POST"])
+def video():
+    """Wan 2.2 video: multipart form with a `prompt` (the motion / scene) and an
+    optional `image` file as the first frame (without it: text-to-video).
+    `width`/`height` are multiples of 32, `frames` is 4n+1 (49 = 2 s at 24 fps)."""
+    prompt = (request.form.get("prompt") or "").strip()
+    if not prompt:
+        return jsonify(error="Describe the video first."), 400
+    upload = request.files.get("image")
+    f = request.form
+
+    return _run_job("video", prompt, f.get("job"), f.get("client"), lambda on_progress:
+        comfy_client.video(
+            COMFY_SERVER,
+            Path(upload.filename).name if upload and upload.filename else None,
+            upload.read() if upload and upload.filename else None,
+            prompt=prompt,
+            negative=(f.get("negative") or "").strip() or VIDEO_NEGATIVE,
+            width=f.get("width", 832),
+            height=f.get("height", 480),
+            frames=f.get("frames", 49),
+            fps=f.get("fps", 24),
+            steps=f.get("steps", VIDEO["steps"]),
+            cfg=f.get("cfg", VIDEO["cfg"]),
+            seed=f.get("seed") or None,
+            unet=f.get("unet") or None,
+            clip=f.get("clip") or None,
+            lora=f.get("lora") or None,
+            lora_strength=f.get("lora_strength", 1.0),
+            timeout=int(f.get("timeout", 7200)),
+            on_progress=on_progress,
+        ))
+
+
 @app.route("/api/enhance", methods=["POST"])
 def enhance():
     """Rewrite a short prompt into a detailed one with the local LLM (Ollama)."""
@@ -237,11 +294,18 @@ def enhance():
     return jsonify(prompt=better, model=prompt_helper.MODEL)
 
 
+VIDEO_TYPES = (".mp4", ".webm", ".mkv", ".gif")
+
+
 def _save(result):
-    """Write rendered images to output/ and build the JSON response body."""
+    """Write rendered images (or videos) to output/ and build the JSON response body.
+    Images come back inline as data URIs; videos only by URL (they're big)."""
     images = []
     for name, blob in result["images"]:
         (OUTPUT_DIR / name).write_bytes(blob)
+        if name.lower().endswith(VIDEO_TYPES):
+            images.append({"filename": name, "url": f"/output/{name}", "data": f"/output/{name}", "video": True})
+            continue
         images.append({
             "filename": name,
             "url": f"/output/{name}",

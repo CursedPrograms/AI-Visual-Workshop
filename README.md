@@ -14,12 +14,16 @@
 
 ---
 
-# Qwen-Image 2.1 GGUF
+# AI Visual Workshop
 
-A **Flask server** — web UI and JSON API — for text-to-image generation, instruction-based
-photo editing, masked inpainting and uncropping with the GGUF quantizations of Qwen-Image 2.1
-(plus optional Krea 2 Turbo for text-to-image), and the ComfyUI workflows it runs on. The model comes from
-[abenzerps/Qwen-Image-2.1-Uncensored-GGUF](https://huggingface.co/abenzerps/Qwen-Image-2.1-Uncensored-GGUF).
+**One local web app for visual AI.** A **Flask server** — web UI and JSON API — for text-to-image
+generation, instruction-based photo editing, masked inpainting, uncropping and **video**, with GGUF
+models on your own GPU, and the ComfyUI workflows it runs on: Qwen-Image 2.1 (from
+[abenzerps/Qwen-Image-2.1-Uncensored-GGUF](https://huggingface.co/abenzerps/Qwen-Image-2.1-Uncensored-GGUF)),
+optional Krea 2 Turbo for text-to-image, and optional Wan 2.2 TI2V-5B for video.
+
+**Site:** [cursedprograms.github.io/AI-Visual-Workshop](https://cursedprograms.github.io/AI-Visual-Workshop/)
+· formerly *Qwen-Image-2.1-Uncensored-GGUF*.
 
 - **Generate** — text to image with Qwen-Image 2.1, or **Krea 2 Turbo** (optional, 8 steps).
 - **Edit photo** — upload a photo and describe the change (*"make the dress red"*); the base
@@ -28,6 +32,8 @@ photo editing, masked inpainting and uncropping with the GGUF quantizations of Q
   outside the mask is kept pixel for pixel.
 - **Uncrop** — extend a photo beyond its borders (to 16:9, 1:1, "zoom out 2×", or per side);
   the model invents the surroundings and the original pixels are kept exactly.
+- **Video** — bring a photo to life, or make a video from a prompt alone, with **Wan 2.2**
+  TI2V-5B (optional): 2–5 seconds at 24 fps, sized to the photo's shape.
 - **✨ Enhance** — rewrite a short prompt into a detailed one with a local LLM (Ollama, optional).
 - **LoRA** — stack a style/behaviour LoRA on any mode, with a strength slider.
 - **Job queue** — press the button as often as you like; each job gets a card with its queue
@@ -50,7 +56,8 @@ and saving them under `output/`.
 | `app.py` | Flask web server (UI + API) |
 | `comfy_client.py` | Uploads photos, queues workflows on ComfyUI, relays progress, cancels and fetches results |
 | `prompt_helper.py` | ✨ Enhance: prompt rewriting via a local Ollama model |
-| `generate.py` | One-shot CLI that queues a job (no server needed) |
+| `generate.py` | One-shot CLI that queues an image job (no server needed) |
+| `generate_video.py` | One-shot CLI for a Wan 2.2 video (no server needed) |
 | `templates/index.html` | The web UI markup |
 | `static/style.css`, `static/app.js` | The UI's styles and client logic |
 | `run.bat` / `run.ps1` / `run.sh` | Create the venv and start the server on localhost |
@@ -61,16 +68,19 @@ and saving them under `output/`.
 | `workflows/qwen_image_2.1_gguf_edit_api.json` | API-format photo-edit graph |
 | `workflows/qwen_image_2.1_gguf_inpaint_api.json` | API-format masked-inpaint graph |
 | `workflows/krea2_turbo_gguf_t2i_api.json` | API-format Krea 2 Turbo text-to-image graph (optional) |
+| `workflows/wan2.2_ti2v_5b_gguf_api.json` | API-format Wan 2.2 TI2V-5B video graph (optional) |
+| `index.html`, `site/` | The project's GitHub Pages site |
+| `link.bf` | A Brainfuck program that prints `cursed-entertainment.itch.io` |
 
 </details>
 
 ## Architecture
 
 ```text
-browser ──HTTP──▶ Flask (app.py) ──HTTP + websocket──▶ ComfyUI ──▶ Qwen-Image 2.1 GGUF
+browser ──HTTP──▶ Flask (app.py) ──HTTP + websocket──▶ ComfyUI ──▶ Qwen-Image 2.1 / Krea 2 / Wan 2.2 (GGUF)
    ▲                   │  │                                │
-   └── images ◀────────┘  └──HTTP──▶ Ollama (✨ Enhance, optional)
-                       output/*.png ◀──────────────────────┘
+   └── results ◀───────┘  └──HTTP──▶ Ollama (✨ Enhance, optional)
+                 output/*.png, *.mp4 ◀─────────────────────┘
 ```
 
 The Flask server is a thin client. **ComfyUI must be running** with the Qwen-Image 2.1 GGUF
@@ -80,7 +90,8 @@ models installed (steps 1–2 below). Then start the server (step 3).
 
 - **GPU:** NVIDIA with 6 GB VRAM or more (tested on an RTX 2060 6 GB).
 - **RAM:** 32 GB minimum, 64 GB recommended if you use both Qwen-Image 2.1 and Krea 2.
-- **Disk:** about 15 GB for the default Qwen files, plus about 14 GB for Krea 2.
+- **Disk:** about 15 GB for the default Qwen files, plus about 14 GB for Krea 2 and 9.4 GB for
+  Wan 2.2 video.
 - **Windows page file: at least 32 GB.** ComfyUI reserves far more memory than it touches
   (the models, plus up to ~26 GB of pinned memory), and Windows refuses an allocation once RAM +
   page file is used up, even with plenty of RAM free. With an automatic page file (often only
@@ -155,7 +166,7 @@ so ComfyUI reads the weights in place:
 
 ```yaml
 qwen_image_gguf:
-    base_path: C:/cc/Qwen-Image-2.1-Uncensored-GGUF/models
+    base_path: C:/cc/AI-Visual-Workshop/models
     diffusion_models: diffusion_models
     unet: diffusion_models
     text_encoders: text_encoders
@@ -194,6 +205,28 @@ load. Krea 2 needs about 8.3 GB for Q4_0, so on a 6 GB card part of it is offloa
 still quick because it only takes 8 steps. Style LoRAs made for Krea 2 are in
 [Comfy-Org/Krea-2/loras](https://huggingface.co/Comfy-Org/Krea-2/tree/main/loras) (each has a
 trigger phrase listed in ComfyUI's Krea 2 template).
+
+### Wan 2.2 video (optional)
+
+The **Video** tab runs [Wan 2.2](https://github.com/Wan-Video/Wan2.2) **TI2V-5B**, the 5-billion-parameter
+model that does both text-to-video and image-to-video, as GGUF. It is Apache 2.0.
+
+| File | Size | From | Folder |
+| --- | --- | --- | --- |
+| `Wan2.2-TI2V-5B-Q5_K_M.gguf` | 3.81 GB | [QuantStack/Wan2.2-TI2V-5B-GGUF](https://huggingface.co/QuantStack/Wan2.2-TI2V-5B-GGUF) | `diffusion_models/` |
+| `umt5-xxl-encoder-Q5_K_M.gguf` | 4.15 GB | [city96/umt5-xxl-encoder-gguf](https://huggingface.co/city96/umt5-xxl-encoder-gguf) | `text_encoders/` |
+| `wan2.2_vae.safetensors` | 1.41 GB | [Comfy-Org/Wan_2.2_ComfyUI_Repackaged](https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged) | `vae/` |
+
+```bash
+WAN=F:/AIModels/wan22           # any drive with ~10 GB free
+hf download QuantStack/Wan2.2-TI2V-5B-GGUF Wan2.2-TI2V-5B-Q5_K_M.gguf --local-dir $WAN/diffusion_models
+hf download city96/umt5-xxl-encoder-gguf umt5-xxl-encoder-Q5_K_M.gguf --local-dir $WAN/text_encoders
+hf download Comfy-Org/Wan_2.2_ComfyUI_Repackaged split_files/vae/wan2.2_vae.safetensors --local-dir $WAN
+mv $WAN/split_files/vae $WAN/vae
+```
+
+Then add the `wan22:` entry from `extra_model_paths.example.yaml` and restart ComfyUI. Q4_K_M,
+Q6_K and Q8_0 of the model (and Q8_0 of the encoder) work too; pick them under **Models & LoRA**.
 
 ### Start ComfyUI
 
@@ -239,7 +272,7 @@ To expose it on the whole local network instead of just this machine, use **`run
 
 ### Using the web UI
 
-The four tabs at the top of the form switch mode:
+The five tabs at the top of the form switch mode:
 
 - **Generate** — prompt, size, steps, CFG, batch, seed. **Model** switches between Qwen-Image 2.1
   and Krea 2 Turbo (steps jump to 8 and the negative prompt is hidden, since Turbo runs at CFG 1).
@@ -258,11 +291,17 @@ The four tabs at the top of the form switch mode:
   the whole expanded image. Large expansions work best in steps: uncrop a little, **use as
   photo**, uncrop again.
 
-Every result has **use as photo**, which makes it the new working photo (from Generate it
+- **Video** — optionally choose a **start photo** (it becomes the first frame and comes to life;
+  **×** removes it for a video from the prompt alone), then describe the motion: *"she slowly turns
+  toward the camera and smiles, slow push-in"*. **Size** matches the photo's shape at about
+  832×480 (fast) or 1280×704 (HD), or pick a fixed size; **Length** is 2, 3.4 or 5 seconds at 24 fps.
+  Steps default to 20 and CFG to 5. The result plays in the gallery, looping.
+
+Every image result has **use as photo**, which makes it the new working photo (from Generate it
 switches to Edit) so you can keep refining; **← Previous photo** steps back. That history lives
 in the browser tab — all results are also saved in `output/`.
 
-**Queueing:** the Generate / Edit / Inpaint / Uncrop button never locks — every press queues a new
+**Queueing:** the Generate / Edit / Inpaint / Uncrop / Video button never locks — every press queues a new
 job, and ComfyUI runs them one after another. Each job gets a card at the top of the gallery
 showing its prompt, *Queued — 2 jobs ahead → Loading models → step n/25 — %* with a progress bar,
 and its own **Cancel**, which removes it from the ComfyUI queue or interrupts it mid-render
@@ -270,7 +309,7 @@ and its own **Cancel**, which removes it from the ComfyUI queue or interrupts it
 stay below, newest first. Settings are captured when you press the button, so you can change the
 prompt, photo or mask for the next job right away. (Browsers allow about 6 connections per site,
 so keep it to 4–5 queued jobs per tab.) Waiting in the queue never times out; the time limit (30 min for
-Generate, 60 min for Edit / Inpaint / Uncrop, or the `timeout` API field in seconds) only starts
+Generate, 60 min for Edit / Inpaint / Uncrop, 2 hours for Video, or the `timeout` API field in seconds) only starts
 when the job actually runs, and a job that runs past it is stopped.
 
 Jobs keep running if you close or reload the tab. The server remembers each browser's jobs
@@ -283,7 +322,8 @@ use a LoRA trained for the model you're running (a Krea 2 LoRA won't do anything
 Qwen-Image, and vice versa).
 
 **✨ Enhance** next to the prompt rewrites it with the local LLM for the current tab (a rich scene
-for Generate, a precise instruction for Edit, the masked area's contents for Inpaint); **Undo**
+for Generate, a precise instruction for Edit, the masked area's contents for Inpaint, the motion and
+camera for Video); **Undo**
 restores what you typed.
 
 ### ✨ Enhance setup (optional)
@@ -409,7 +449,19 @@ Both return the same shape as `/api/generate`. Uncrop is `/api/inpaint` with a p
 photo on a larger grey canvas) and a mask that is white over the new border; send `kind=uncrop`
 to save results as `Qwen_image_2.1_gguf_uncrop_*.png`.
 
-**`POST /api/enhance`** — `{"prompt": "...", "mode": "generate"|"edit"|"inpaint"}` →
+**`POST /api/video`** — multipart form: `prompt` (the motion and scene) and an optional `image`
+file (the first frame; without it, text-to-video), plus optional `width` / `height` (multiples of
+32, default 832×480), `frames` (4n+1, default 49 = 2 s), `fps` (24), `steps` (20), `cfg` (5),
+`negative` (blank = a default list of artefacts to avoid), `seed`, `unet`, `clip`, `lora`,
+`lora_strength`, `job`, `client`, `timeout` (7200). Same response shape as `/api/generate`; the
+`.mp4` is in `images` with `"video": true`, and `data` is its URL instead of base64.
+
+```bash
+curl -X POST http://127.0.0.1:5000/api/video \
+  -F image=@photo.png -F "prompt=she turns toward the camera and smiles" -F frames=81
+```
+
+**`POST /api/enhance`** — `{"prompt": "...", "mode": "generate"|"edit"|"inpaint"|"uncrop"|"video"}` →
 `{"prompt": "<rewritten>", "model": "gemma3:4b-it-qat"}`; HTTP 502 if Ollama is unreachable.
 
 **`GET /api/progress/<job>`** — `{"id", "kind", "prompt", "client", "created", "state",
@@ -438,7 +490,18 @@ python generate.py "a watercolour lighthouse on a rocky coast at dusk" --width 1
 python generate.py "..." --unet qwen-image-2.1-UC-Q8_0.gguf --steps 40 --seed 42
 ```
 
+`generate_video.py` does the same for a Wan 2.2 video (saved to `output/`):
+
+```bash
+python generate_video.py "she turns toward the camera and smiles" --image photo.png
+python generate_video.py "waves crashing on a rocky shore at sunset" --frames 121   # text-to-video
+```
+
 ## Settings
+
+- **Video (Wan 2.2):** 20 steps, CFG 5 and shift 8 are the defaults. 832×480 is the fast size and
+  1280×704 the model's native one. On an RTX 2060 (6 GB), 832×480 × 49 frames (2 s) takes about
+  3.5 minutes, including loading the model; time grows with size × frames. Use a 4n+1 frame count.
 
 - **cfg 1** is the official setting. The negative prompt is ignored unless cfg is above 1.
 - **Steps:** the official pipeline uses 40–50 euler steps. The default here is 25, which is faster.
@@ -504,4 +567,24 @@ ComfyUI again.
 
 ## License
 
-The model weights are under the Qwen Research License. The workflow and scripts are under the [LICENSE](LICENSE) in this repo.
+The Qwen-Image weights are under the Qwen Research License, Krea 2 under the Krea 2 Community License, and Wan 2.2 under Apache 2.0. The workflow and scripts are under the [LICENSE](LICENSE) in this repo.
+
+---
+
+<br>
+<div align="center">
+© Cursed Entertainment 2026
+</div>
+<br>
+<div align="center">
+<a href="https://cursed-entertainment.itch.io/" target="_blank">
+    <img src="https://github.com/CursedPrograms/cursedentertainment/raw/main/images/logos/logo-wide-grey.png"
+        alt="CursedEntertainment Logo" style="width:250px;">
+</a>
+</div>
+<br>
+<div align="center">
+  <a href="https://github.com/SynthWomb" target="_blank">
+    <img src="https://github.com/SynthWomb/synth.womb/blob/main/logos/synthwomb07.png" alt="SynthWomb" style="width:200px;"/>
+  </a>
+</div>

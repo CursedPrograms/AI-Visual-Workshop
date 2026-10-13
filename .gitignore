@@ -144,7 +144,7 @@ venv.bak/
 .ropeproject
 
 # mkdocs documentation
-/site
+# /site  (not ignored: it holds the GitHub Pages site's CSS and JS)
 
 # mypy
 .mypy_cache/
@@ -192,3 +192,6 @@ models/
 
 # Your own photos used for Edit / Inpaint
 input/
+
+# Test runs (gen-test.log is kept)
+gen-test-result.json

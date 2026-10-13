@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Visual Workshop</title>
+<meta name="description" content="One local web app for visual AI on your own GPU: text-to-image, photo editing, inpainting, uncropping and video with Qwen-Image 2.1, Krea 2 and Wan 2.2 (GGUF), driving ComfyUI.">
+<meta name="color-scheme" content="dark">
+<meta property="og:title" content="AI Visual Workshop">
+<meta property="og:description" content="Generate, edit, inpaint, uncrop and animate, locally: Qwen-Image 2.1, Krea 2 and Wan 2.2 GGUF through ComfyUI.">
+<meta property="og:image" content="docs/ui-video.png">
+<link rel="icon" href="site/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="site/style.css">
+<script src="site/site.js" defer></script>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">local &middot; offline &middot; your GPU</div>
+    <h1>AI Visual Workshop</h1>
+    <p class="tagline">Every visual-AI task in one place</p>
+    <p class="lede">One web app and JSON API over ComfyUI: make an image, edit a photo by describing the change, repaint part of it, extend it past its borders, or bring it to life as a video. GGUF models, so it runs on a 6&nbsp;GB card.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/CursedPrograms/AI-Visual-Workshop">View on GitHub</a>
+      <a class="btn" href="#run">Run it</a>
+      <a class="btn" href="https://ko-fi.com/cursedentertainment">Support on Ko-fi</a>
+    </div>
+    <div class="tags">
+      <span class="tag">Qwen-Image 2.1</span><span class="tag">Krea 2 Turbo</span><span class="tag">Wan 2.2</span>
+      <span class="tag">GGUF</span><span class="tag">ComfyUI</span><span class="tag">Flask</span><span class="tag">MIT</span>
+    </div>
+    <figure class="shot">
+      <img src="docs/ui-video.png" alt="The web UI on its Video tab" width="1280" height="1000">
+      <figcaption>The Video tab</figcaption>
+    </figure>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="tabs">
+    <h2>Five tabs</h2>
+    <div class="grid">
+      <div class="card"><span class="k">Generate</span><h3>Text to image</h3><p>Qwen-Image 2.1, or Krea 2 Turbo in 8 steps. Size, steps, CFG, batch, seed.</p></div>
+      <div class="card"><span class="k">Edit photo</span><h3>Describe the change</h3><p>&ldquo;Make the dress red.&rdquo; Qwen-Image 2.1 edits natively, keeping the photo's shape and everything you didn't mention.</p></div>
+      <div class="card"><span class="k">Inpaint</span><h3>Repaint one area</h3><p>Paint a mask and regenerate only that part. Everything outside it is kept pixel for pixel.</p></div>
+      <div class="card"><span class="k">Uncrop</span><h3>Past the borders</h3><p>Extend to 16:9, 1:1 or &ldquo;zoom out 2&times;&rdquo;. The model invents the surroundings; the original stays exact.</p></div>
+      <div class="card"><span class="k">Video</span><h3>Bring it to life</h3><p>Wan 2.2: animate a photo or make a video from a prompt alone. 2&ndash;5&nbsp;s at 24&nbsp;fps, sized to the photo.</p></div>
+      <div class="card"><span class="k">Extras</span><h3>Enhance, LoRA, queue</h3><p>&#10024; rewrites a prompt with a local LLM, LoRAs stack on any tab, and every job gets a card with live progress and Cancel.</p></div>
+    </div>
+    <figure class="shot wide">
+      <img src="docs/video-frames.jpg" alt="Five frames of a Wan 2.2 video made from one portrait: she breaks into a smile and turns her head" width="2080" height="240" loading="lazy">
+      <figcaption>One portrait &rarr; 2&nbsp;s of Wan 2.2 video (832&times;480, 20 steps, about 3.5&nbsp;min on an RTX 2060)</figcaption>
+    </figure>
+  </section>
+
+  <section id="models">
+    <h2>Models</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Model</th><th>Does</th><th>Default file</th><th>License</th></tr></thead>
+        <tbody>
+          <tr><td>Qwen-Image 2.1</td><td>Generate, edit, inpaint, uncrop</td><td><code>qwen-image-2.1-UC-Q4_K_M.gguf</code> (4.6&nbsp;GB)</td><td>Qwen Research</td></tr>
+          <tr><td>Krea 2 Turbo <span class="muted">(optional)</span></td><td>Generate, in 8 steps</td><td><code>krea2_turbo_bf16-Q4_0.gguf</code> (8.3&nbsp;GB)</td><td>Krea 2 Community</td></tr>
+          <tr><td>Wan 2.2 TI2V-5B <span class="muted">(optional)</span></td><td>Video: text or photo to video</td><td><code>Wan2.2-TI2V-5B-Q5_K_M.gguf</code> (3.8&nbsp;GB)</td><td>Apache 2.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Tested on an RTX 2060 (6&nbsp;GB) with 64&nbsp;GB of RAM. Set the Windows page file to at least 32&nbsp;GB.</p>
+  </section>
+
+  <section id="how">
+    <h2>How it works</h2>
+<pre>browser &rarr; Flask (app.py) &rarr; HTTP + websocket &rarr; ComfyUI &rarr; Qwen-Image 2.1 / Krea 2 / Wan 2.2 (GGUF)
+                       &darr;
+                 Ollama (&#10024; Enhance, optional)</pre>
+    <p class="muted">The Flask server doesn't run the models: it patches the API-format ComfyUI workflow for the tab with your prompt and settings, queues it, relays live sampler progress, and saves the results to <code>output/</code>. So the UI can live on a Raspberry Pi while a GPU PC does the work.</p>
+  </section>
+
+  <section id="run">
+    <h2>Run it</h2>
+    <ol class="steps">
+      <li>Install <a href="https://github.com/comfyanonymous/ComfyUI">ComfyUI</a> and the <a href="https://github.com/leejet/ComfyUI-GGUF">leejet ComfyUI-GGUF</a> nodes.</li>
+      <li>Download the models (the README lists every file) and point ComfyUI at them with <code>extra_model_paths.yaml</code>.</li>
+      <li>Start ComfyUI, then <code>run.bat</code> (or <code>run.ps1</code>, <code>run.sh</code>), and open <code>http://127.0.0.1:5000</code>.</li>
+    </ol>
+<pre><span class="p">$</span> python main.py --disable-comfy-compiler --disable-dynamic-vram --disable-async-offload --cache-ram 6 16
+<span class="p">$</span> run.bat
+<span class="p">$</span> python generate_video.py "she turns toward the camera and smiles" --image photo.png</pre>
+    <h3 class="sub">Or script it</h3>
+<pre><span class="p">$</span> curl -X POST http://127.0.0.1:5000/api/video \
+    -F image=@photo.png -F "prompt=she turns toward the camera and smiles" -F frames=81</pre>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="https://github.com/CursedPrograms/AI-Visual-Workshop">GitHub</a>
+      <a href="https://x.com/NorowaretaGemu">X: @NorowaretaGemu</a>
+      <a href="https://cursed-entertainment.itch.io/">itch.io</a>
+      <a href="https://ko-fi.com/cursedentertainment">Ko-fi</a>
+      <a href="https://github.com/CursedPrograms/AI-Visual-Workshop/blob/main/LICENSE">MIT License</a>
+    </div>
+
+    <div class="bf">
+      <code id="bfCode">++++++++++[&gt;+&gt;+++&gt;+++++++&gt;++++++++++&lt;&lt;&lt;&lt;-]&gt;&gt;&gt;&gt;-.++++++++++++++++++.---.+.--------------.-.&lt;&lt;+++++++++++++++.&gt;&gt;+.+++++++++.++++++.---------------.+++++++++++++.++.-------------------.++++++++.+++++.-.--------.+++++++++.++++++.&lt;&lt;+.&gt;&gt;-----------.+++++++++++.-----------------.+++++.&lt;&lt;.&gt;&gt;+.++++++.</code>
+      <button type="button" id="bfRun">Run link.bf</button>
+      <a id="bfOut" hidden></a>
+    </div>
+
+    <div class="logos">
+      <a href="https://ko-fi.com/cursedentertainment">
+        <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support Cursed Entertainment on Ko-fi" width="180" loading="lazy">
+      </a>
+      <a href="https://cursed-entertainment.itch.io/">
+        <img src="https://github.com/CursedPrograms/cursedentertainment/raw/main/images/logos/logo-wide-grey.png" alt="Cursed Entertainment" width="250" loading="lazy">
+      </a>
+      <a href="https://github.com/SynthWomb">
+        <img src="https://github.com/SynthWomb/synth.womb/blob/main/logos/synthwomb07.png?raw=true" alt="SynthWomb" width="200" loading="lazy">
+      </a>
+    </div>
+
+    <div>AI Visual Workshop &middot; <a href="https://farica-kimora.github.io/FaricaKimora/">Farica&#9734;Kimora</a> &copy; Cursed Entertainment 2026</div>
+  </div>
+</footer>
+
+</body>
+</html>

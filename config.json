@@ -1,7 +1,7 @@
 {
   "Config": {
-    "AppName": "Qwen-Image 2.1 GGUF",
-    "Description": "A Flask web UI and JSON API for text-to-image generation (Qwen-Image 2.1 or Krea 2 Turbo), photo editing, masked inpainting and uncropping with GGUF models, driving a running ComfyUI backend.",
+    "AppName": "AI Visual Workshop",
+    "Description": "One local web app and JSON API for visual AI: text-to-image (Qwen-Image 2.1 or Krea 2 Turbo), photo editing, masked inpainting, uncropping and video (Wan 2.2) with GGUF models, driving a running ComfyUI backend.",
     "Example": "a watercolour lighthouse on a rocky coast at dusk",
     "Backend": "ComfyUI (http://127.0.0.1:8188)",
     "Functionalities": [
@@ -26,6 +26,10 @@
         "Description": "Extend a photo beyond its borders to a chosen aspect ratio or zoom-out; only the new border is generated and the original pixels are kept (POST /api/inpaint with a padded image)."
       },
       {
+        "Name": "Video",
+        "Description": "Text-to-video, or bring a photo to life: Wan 2.2 TI2V-5B renders 2-5 s at 24 fps, sized to the photo's shape (POST /api/video)."
+      },
+      {
         "Name": "Prompt enhancer",
         "Description": "Rewrite a short prompt into a detailed one with a local LLM served by Ollama (POST /api/enhance)."
       },
@@ -35,7 +39,7 @@
       },
       {
         "Name": "JSON API",
-        "Description": "POST /api/generate, /api/edit and /api/inpaint to script generation; GET /api/health reports whether the ComfyUI backend is reachable."
+        "Description": "POST /api/generate, /api/edit, /api/inpaint and /api/video to script generation; GET /api/health reports whether the ComfyUI backend is reachable."
       },
       {
         "Name": "LoRA",

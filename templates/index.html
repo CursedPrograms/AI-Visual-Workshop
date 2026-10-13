@@ -9,7 +9,7 @@
 <body>
 <header>
   <h1>{{ config.AppName }}</h1>
-  <span class="tag">Qwen-Image 2.1 · GGUF</span>
+  <span class="tag">Qwen-Image 2.1 · Krea 2 · Wan 2.2 · GGUF</span>
   <div id="status"><span class="dot" id="dot"></span><span id="statusText">checking backend…</span></div>
 </header>
 
@@ -20,16 +20,45 @@
       <button type="button" class="tab" data-mode="edit">Edit photo</button>
       <button type="button" class="tab" data-mode="inpaint">Inpaint</button>
       <button type="button" class="tab" data-mode="uncrop">Uncrop</button>
+      <button type="button" class="tab" data-mode="video">Video</button>
     </div>
 
-    <div data-modes="edit inpaint uncrop" hidden>
-      <label for="image">Photo</label>
+    <div data-modes="edit inpaint uncrop video" hidden>
+      <label for="image" id="photoLabel">Photo</label>
       <input id="image" type="file" accept="image/*">
       <div class="photo-row" id="photoRow" hidden>
         <span class="hint" id="photoInfo"></span>
         <button type="button" class="small" id="prevPhoto" hidden>&larr; Previous photo</button>
+        <button type="button" class="small" id="clearPhoto" title="Remove the photo">&times;</button>
       </div>
-      <img id="preview" class="preview" alt="" data-modes="edit" hidden>
+      <img id="preview" class="preview" alt="" data-modes="edit video" hidden>
+    </div>
+
+    <div data-modes="video" hidden>
+      <div class="row">
+        <div>
+          <label for="vsize">Size</label>
+          <select id="vsize">
+            <option value="match">Match photo</option>
+            <option value="match-hd">Match photo, HD</option>
+            <option value="832x480">832&times;480</option>
+            <option value="480x832">480&times;832</option>
+            <option value="640x640">640&times;640</option>
+            <option value="1280x704">1280&times;704 HD</option>
+            <option value="704x1280">704&times;1280 HD</option>
+          </select>
+        </div>
+        <div>
+          <label for="frames">Length</label>
+          <select id="frames">
+            <option value="49">2 s</option>
+            <option value="81">3.4 s</option>
+            <option value="121">5 s</option>
+          </select>
+        </div>
+      </div>
+      <div class="hint" id="vsizeInfo"></div>
+      <div class="hint">With a photo it comes to life; without one the video comes from the prompt alone. 24 fps.</div>
     </div>
 
     <div data-modes="inpaint" hidden>
@@ -147,7 +176,8 @@
       </div>
       <div class="hint">LoRAs come from ComfyUI's <code>models/loras</code> (and extra_model_paths). Use one made for the selected model.</div>
     </details>
-    <script id="modelsData" type="application/json">{{ models|tojson }}</script>
+    <script id="modelsData" type="application/json">{{ families|tojson }}</script>
+    <script id="videoNegative" type="application/json">{{ video_negative|tojson }}</script>
 
     <button type="submit" id="go">Generate</button>
     <div id="msg"></div>
@@ -155,7 +185,7 @@
 
   <section>
     <div id="gallery" class="gallery">
-      <div class="empty">Generated images will appear here.</div>
+      <div class="empty">Generated images and videos will appear here.</div>
     </div>
   </section>
 </main>

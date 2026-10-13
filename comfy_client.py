@@ -1,8 +1,8 @@
-"""Minimal ComfyUI client for the Qwen-Image 2.1 GGUF workflows.
+"""Minimal ComfyUI client for the AI Visual Workshop workflows.
 
-Queues the API-format graph (text-to-image, image edit or masked inpaint of an
-uploaded photo) on a running ComfyUI server, waits for the job to finish and pulls the
-rendered images back out. Standard library only.
+Queues the API-format graph (text-to-image, image edit, masked inpaint of an
+uploaded photo, or a Wan 2.2 video) on a running ComfyUI server, waits for the job
+to finish and pulls the rendered images or video back out. Standard library only.
 """
 import json
 import random
@@ -23,6 +23,7 @@ WORKFLOW = WORKFLOWS / "qwen_image_2.1_gguf_t2i_api.json"
 EDIT_WORKFLOW = WORKFLOWS / "qwen_image_2.1_gguf_edit_api.json"
 INPAINT_WORKFLOW = WORKFLOWS / "qwen_image_2.1_gguf_inpaint_api.json"
 KREA2_WORKFLOW = WORKFLOWS / "krea2_turbo_gguf_t2i_api.json"
+VIDEO_WORKFLOW = WORKFLOWS / "wan2.2_ti2v_5b_gguf_api.json"
 # Text-to-image model families: "qwen" (Qwen-Image 2.1) or "krea2" (Krea 2 Turbo).
 T2I_WORKFLOWS = {"qwen": WORKFLOW, "krea2": KREA2_WORKFLOW}
 MAX_SEED = 2 ** 53
@@ -43,8 +44,9 @@ def load_workflow(path=WORKFLOW):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _apply_lora(wf, lora, strength):
-    """Insert a LoraLoaderModelOnly between the model loader and the sampler."""
+def _apply_lora(wf, lora, strength, consumer="6"):
+    """Insert a LoraLoaderModelOnly between the model loader ("1") and the node
+    that takes the model (`consumer`: the sampler, or Wan's ModelSamplingSD3)."""
     if not lora:
         return
     wf["20"] = {
@@ -52,7 +54,7 @@ def _apply_lora(wf, lora, strength):
         "inputs": {"model": ["1", 0], "lora_name": lora,
                    "strength_model": float(strength)},
     }
-    wf["6"]["inputs"]["model"] = ["20", 0]
+    wf[consumer]["inputs"]["model"] = ["20", 0]
 
 
 def build_workflow(prompt, *, model="qwen", negative="", width=1024, height=1024,
@@ -144,6 +146,44 @@ def build_inpaint_workflow(prompt, image, mask, *, reference=None, negative="", 
         wf["14"] = {"class_type": "LoadImage", "inputs": {"image": reference}}
         wf["4"]["inputs"]["images.image_1"] = ["14", 0]
         wf["4"]["inputs"]["resolution"] = 1024
+    return wf, seed
+
+
+def build_video_workflow(prompt, image=None, *, negative="", width=832, height=480,
+                         frames=49, fps=24, steps=20, cfg=5.0, shift=8.0, seed=None,
+                         unet=None, clip=None, lora=None, lora_strength=1.0,
+                         sampler="uni_pc", scheduler="simple", prefix="video/Wan2.2_ti2v"):
+    """Patch the Wan 2.2 TI2V-5B graph. `image` (a filename already uploaded to
+    ComfyUI) is the first frame; without it the video comes from the prompt alone.
+
+    width/height are multiples of 32 and `frames` is 4n+1 (49 = 2 s at 24 fps,
+    121 = 5 s). Returns (workflow_dict, resolved_seed).
+    """
+    width, height, frames = int(width), int(height), int(frames)
+    if width % 32 or height % 32:
+        raise ValueError("width and height must be multiples of 32")
+    if frames < 5 or (frames - 1) % 4:
+        raise ValueError("frames must be 4n+1 (e.g. 49, 81, 121)")
+    wf = load_workflow(VIDEO_WORKFLOW)
+    if unet:
+        wf["1"]["inputs"]["unet_name"] = unet
+    if clip:
+        wf["2"]["inputs"]["clip_name"] = clip
+    wf["4"]["inputs"]["shift"] = float(shift)
+    wf["5"]["inputs"]["text"] = prompt
+    if negative:
+        wf["6"]["inputs"]["text"] = negative
+    _apply_lora(wf, lora, lora_strength, consumer="4")
+    wf["8"]["inputs"].update(width=width, height=height, length=frames)
+    if image:
+        wf["7"]["inputs"]["image"] = image
+    else:
+        del wf["7"], wf["8"]["inputs"]["start_image"]
+    seed = int(seed) if seed not in (None, "") else random.randint(0, MAX_SEED)
+    wf["9"]["inputs"].update(seed=seed, steps=int(steps), cfg=float(cfg),
+                             sampler_name=sampler, scheduler=scheduler)
+    wf["11"]["inputs"]["fps"] = float(fps)
+    wf["12"]["inputs"]["filename_prefix"] = prefix
     return wf, seed
 
 
@@ -304,10 +344,11 @@ def wait(server, prompt_id, timeout=600, poll=1.0):
 
 
 def collect_images(server, record):
-    """Download every SaveImage output from a finished history record."""
+    """Download every SaveImage / SaveVideo output from a finished history record
+    (ComfyUI lists saved videos under "images" too, and some nodes use "gifs")."""
     images = []
     for node in record.get("outputs", {}).values():
-        for img in node.get("images", []):
+        for img in node.get("images", []) + node.get("gifs", []) + node.get("videos", []):
             query = urllib.parse.urlencode(img)
             with urllib.request.urlopen(f"{server}/view?{query}") as r:
                 images.append((img["filename"], r.read()))
@@ -350,6 +391,16 @@ def inpaint(server, image_name, image_data, mask_data, *, reference_data=None,
     return _run(server, *build_inpaint_workflow(image=image, mask=mask,
                                                 reference=reference, **params),
                 timeout=timeout, on_progress=on_progress)
+
+
+def video(server, image_name=None, image_data=None, *, timeout=7200, on_progress=None, **params):
+    """Upload the start photo (if any), then render a Wan 2.2 video.
+
+    Same return shape as generate(); "images" holds the .mp4.
+    """
+    stored = upload_image(server, _unique(image_name), image_data) if image_data else None
+    return _run(server, *build_video_workflow(image=stored, **params), timeout=timeout,
+                on_progress=on_progress)
 
 
 def _open_ws(server, client_id):

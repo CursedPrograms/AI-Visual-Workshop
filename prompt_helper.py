@@ -48,6 +48,13 @@ SYSTEM = {
         "and lighting consistent with a photograph. Do not describe the main subject."
         + _COMMON
     ),
+    "video": (
+        "You write prompts for a text-to-video and image-to-video model. Expand the user's "
+        "idea into 40-90 words describing what happens over a few seconds: the subject's "
+        "motion and expression, how the camera moves (slow push-in, pan, static), the "
+        "setting, lighting and mood. Describe motion as a continuous action, one scene, "
+        "no cuts." + _COMMON
+    ),
 }
 
 

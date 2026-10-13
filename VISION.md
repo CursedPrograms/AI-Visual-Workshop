@@ -57,8 +57,8 @@ browser ─▶│  Generate │ Edit │ Inpaint │ Outpaint │ Upscale │ Re
 
 ## Open decisions
 
-- **Repo identity:** evolve *this* repo into the Workshop (rename from
-  `Qwen-Image-2.1-Uncensored-GGUF` → e.g. `Visual-Workshop`, Qwen becomes module #1), or
-  keep this as the image engine and create a separate umbrella repo that imports it.
+- **Repo identity:** decided 2026-10-13: *this* repo became the Workshop, renamed from
+  `Qwen-Image-2.1-Uncensored-GGUF` to `AI-Visual-Workshop`. Qwen-Image is module #1, and
+  Video (Wan 2.2 TI2V-5B) is module #2.
 - **Relation to the ecosystem:** the Workshop is the visual service DREAM/Friday call for
   "dreaming" (see that project), announced on the LAN as `qwen.flask`.

@@ -26,6 +26,8 @@ const MODES = {
               placeholder: "a red evening gown" },
   uncrop:   { label: "Describe the wider scene (optional)", button: "Uncrop", busy: "Uncropping…",
               placeholder: "a sunlit beach with palm trees and a boardwalk" },
+  video:    { label: "Describe the motion", button: "Make video", busy: "Rendering video…",
+              placeholder: "she slowly turns toward the camera and smiles, wind in her hair, slow push-in" },
 };
 // Don't mention the grey padding here: told to "fill the grey border", the model paints grey.
 const UNCROP_DEFAULT = "Extend the photo outward, seamlessly continuing the scene, with the same " +
@@ -40,15 +42,21 @@ function setMode(m) {
   $("promptLabel").textContent = MODES[m].label;
   $("prompt").placeholder = MODES[m].placeholder;
   $("go").textContent = MODES[m].button;
+  $("photoLabel").textContent = m === "video" ? "Start photo (optional)" : "Photo";
   refreshModelOptions();
+  showVideoSize();
 }
-document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => setMode(t.dataset.mode)));
+document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
+  setMode(t.dataset.mode);
+  window.history.replaceState(null, "", "#" + t.dataset.mode);  // link straight to a tab
+}));
 
-// ---- model family (Generate only; Edit/Inpaint always use Qwen-Image) + LoRA ----
+// ---- model family (Generate picks; Edit/Inpaint/Uncrop use Qwen-Image; Video uses Wan) + LoRA ----
 const FAMILIES = JSON.parse($("modelsData").textContent);
+const VIDEO_NEGATIVE = JSON.parse($("videoNegative").textContent);
 let shownFamily = null;
 
-function family() { return mode === "generate" ? $("model").value : "qwen"; }
+function family() { return mode === "generate" ? $("model").value : mode === "video" ? "wan" : "qwen"; }
 
 function refreshModelOptions() {
   const fam = family();
@@ -60,7 +68,9 @@ function refreshModelOptions() {
     for (const f of files) $(id).add(new Option(f, f));
   }
   $("steps").value = m.steps;
+  $("cfg").value = m.cfg || 1;
   $("negativeBox").hidden = fam === "krea2";  // Krea 2 Turbo runs at cfg 1 with no negative
+  $("negative").placeholder = fam === "wan" ? VIDEO_NEGATIVE : "blurry, low quality";
 }
 $("model").addEventListener("change", refreshModelOptions);
 refreshModelOptions();
@@ -150,9 +160,10 @@ function loadPhoto(blob, name, { keepMask = false, remember = false } = {}) {
   const img = new Image();
   img.onload = () => {
     photo = img;
-    $("preview").hidden = mode !== "edit";
+    $("preview").hidden = !["edit", "video"].includes(mode);
     layoutCanvases();
     drawUncrop();
+    showVideoSize();
   };
   img.src = url;
   $("photoRow").hidden = false;
@@ -166,6 +177,32 @@ $("image").addEventListener("change", () => {
   history = [];
   loadPhoto(file, file.name);
 });
+
+$("clearPhoto").addEventListener("click", () => {
+  photo = null; photoBlob = null; photoName = ""; history = []; painted = false;
+  $("image").value = "";
+  $("photoRow").hidden = true; $("preview").hidden = true;
+  $("canvasWrap").hidden = true; uncropCanvas.hidden = true;
+  showVideoSize();
+});
+
+// ---- video size: a preset, or the photo's shape at about 832x480 (or 1280x704) pixels ----
+function videoSize() {
+  const v = $("vsize").value;
+  if (!v.startsWith("match")) return v.split("x").map(Number);
+  const area = v === "match-hd" ? 1280 * 704 : 832 * 480;
+  if (!photo) return v === "match-hd" ? [1280, 704] : [832, 480];
+  const ratio = photo.naturalWidth / photo.naturalHeight;
+  const fit = (x) => Math.min(1280, Math.max(256, Math.round(x / 32) * 32));
+  return [fit(Math.sqrt(area * ratio)), fit(Math.sqrt(area / ratio))];
+}
+
+function showVideoSize() {
+  const [w, h] = videoSize();
+  $("vsizeInfo").textContent = `${w}×${h}` + ($("vsize").value.startsWith("match") && !photo ? " (no photo: landscape)" : "");
+}
+$("vsize").addEventListener("change", showVideoSize);
+if (MODES[location.hash.slice(1)]) setMode(location.hash.slice(1));
 
 $("prevPhoto").addEventListener("click", () => {
   const prev = history.pop();
@@ -313,8 +350,11 @@ function resultCards(j) {
   return j.images.map((img) => {
     const card = document.createElement("div");
     card.className = "card";
-    const image = document.createElement("img");
-    image.src = img.data; image.alt = "result";
+    const isVideo = img.video || /\.(mp4|webm|mkv)$/i.test(img.filename);
+    const image = document.createElement(isVideo ? "video" : "img");
+    image.src = isVideo ? img.url : img.data;
+    if (isVideo) Object.assign(image, { controls: true, loop: true, muted: true, autoplay: true, playsInline: true });
+    else image.alt = "result";
     const meta = document.createElement("div");
     meta.className = "meta";
     const seed = document.createElement("span");
@@ -331,7 +371,8 @@ function resultCards(j) {
     });
     const dl = document.createElement("a");
     dl.href = img.url; dl.download = img.filename; dl.textContent = "download";
-    actions.append(reuse, dl);
+    if (isVideo) actions.append(dl);
+    else actions.append(reuse, dl);
     meta.append(seed, actions);
     card.append(image, meta);
     return card;
@@ -415,6 +456,13 @@ async function buildRequest(prompt, job) {
     form.append("resolution", $("resolution").value);
     return ["/api/edit", { method: "POST", body: form }];
   }
+  if (mode === "video") {
+    const [w, h] = videoSize();
+    form.append("width", w); form.append("height", h);
+    form.append("frames", $("frames").value);
+    if (photoBlob) form.append("image", photoBlob, photoName);
+    return ["/api/video", { method: "POST", body: form }];
+  }
   const name = photoName.replace(/\.[^.]+$/, "") + ".png";
   if (mode === "uncrop") {
     const g = uncropGeometry();
@@ -434,7 +482,7 @@ $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
   let prompt = $("prompt").value.trim();
   const fail = (text) => { msg.className = "err"; msg.textContent = text; };
-  if (mode !== "generate" && !photoBlob) return fail("Choose a photo first.");
+  if (!["generate", "video"].includes(mode) && !photoBlob) return fail("Choose a photo first.");
   if (mode === "inpaint" && !painted) return fail("Paint over the area to change first.");
   if (mode === "uncrop") {
     if (!uncropGeometry()?.padded) return fail("Pick an aspect ratio or drag a slider to add canvas first.");
@@ -458,7 +506,7 @@ $("form").addEventListener("submit", async (e) => {
     stop();
     if (j.cancelled) return card.replaceWith(noteCard("Cancelled: " + prompt));
     if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
-    if (!j.images.length) throw new Error("ComfyUI finished without an image (check its console).");
+    if (!j.images.length) throw new Error("ComfyUI finished without a result (check its console).");
     card.replaceWith(...resultCards(j));
   } catch (err) {
     stop();
