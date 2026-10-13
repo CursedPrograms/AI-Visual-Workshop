@@ -63,9 +63,4 @@ footer { border-top: 1px solid var(--line); margin-top: 56px; padding: 44px 0 56
 footer .links { display: flex; flex-wrap: wrap; gap: 8px 22px; justify-content: center; margin-bottom: 18px; }
 footer .logos { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 28px; margin: 24px 0; }
 footer .logos img { display: block; height: auto; max-width: 100%; }
-.bf { max-width: 640px; margin: 0 auto; display: grid; gap: 10px; justify-items: center; }
-.bf code { display: block; font-size: 11px; line-height: 1.5; padding: 8px 10px; color: var(--sub); word-break: break-all; }
-.bf button { font: 600 13px system-ui, sans-serif; padding: 7px 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; }
-.bf button:hover { border-color: var(--accent); }
-.bf a { font: 15px var(--mono); }
 [hidden] { display: none !important; }
