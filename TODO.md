@@ -1,5 +1,31 @@
 # TODO
 
+## ▶ Start here (handoff, 2026-10-14)
+
+Everything below is committed and pushed. In order:
+
+1. **Test Pose** — the only tool never run. SDPose is installed; ComfyUI sees it. Give it a photo of a
+   person in a clear pose (a frame of `output/Wan2.2_i2v_face_test_00001_.mp4` with her hand raised
+   works) and a prompt; check the skeleton map and that the result copies the pose.
+2. **Download + test RealVisXL** (Models page, 6.9 GB) → SDXL in Generate. Chroma / NoobAI /
+   Juggernaut / DMD2 are optional extras on the Models page.
+3. **Face model (test)**: works (6 min for 3 s at 480×832). Keep clips at 3 s and click *smooth* —
+   long clips take hours on the 6 GB card (the app now warns). Drop "(test)" after a few more portraits.
+4. **Next tools:** Restyle (img2img), depth/edges control, `generate.py` CLI for all models.
+
+Things a new session should know:
+- Run with `run.bat` → http://127.0.0.1:7870. **Ports 5000–5999 belong to the DREAM fleet** (RIFT is on 5000).
+- ComfyUI runs in its own console window titled "ComfyUI" (`start_comfy.bat`); closing it stops ComfyUI.
+  It reads `extra_model_paths.yaml` only at startup — restart it after adding a model *folder*.
+- GGUF models only stop between sampler steps, so Cancel can take a while on big jobs (the card says so).
+- ComfyUI's RIFE crashes when only partly loaded; Video FX frees VRAM (`/free`) and retries once.
+- Another Claude session usually works on TINA / the fleet (D:\cc\DREAM Robotics Ecosystem). Message it
+  before heavy GPU jobs ("hold TINA until GPU free") — TINA's Ollama shares the 6 GB card.
+- Model backup: `F:\AIModelsackupackup_models.bat` (copies only new/changed files).
+- Elsewhere: Jenny's repo still needs renaming on GitHub (user's step), then `git remote set-url` to
+  CursedPrograms/Jenny; DREAM's own plan is in `D:\cc\DREAM Robotics Ecosystem\DREAM\TODO.md`;
+  the fleet plan (incl. music sync, owned by the TINA session) in `D:\cc\DREAM Robotics Ecosystem\TODO.md`.
+
 ## Image editing ("photo in → edited photo out")
 
 Let a user upload a photo and give an instruction like *"change the dress to a red
@@ -94,7 +120,7 @@ Krea 2 Turbo (12B DiT, June 2026) as an alternative text-to-image model, 8 steps
 - [ ] **Download (base):** RealVisXL V5 Lightning (6.9 GB) — paused, not started.
 - [x] **Download (base, test):** Wan 2.2 I2V-A14B faces (test) — 14.4 GB, SHA-256 verified.
 - [x] **Face model (test) first run** (2026-10-13): demo portrait, 480×832, 49 frames, 6 min on the RTX 2060; identity held through a smile, hair tuck and head tilt. Keep the (test) mark until a few more portraits.
-- [ ] **Download (base):** SDPose (Pose tool) — paused at ~18 %.
+- [x] **Download (base):** SDPose (Pose tool) — complete, SHA-256 verified, backed up. **Pose not run yet.**
 - [x] **SDXL** family in Generate (`workflows/sdxl_t2i_api.json`): any SDXL checkpoint, per-file
       steps/CFG presets (Lightning 6 steps / CFG 1.5; others 25 / 5).
 - [x] **Chroma1-HD** (optional, Apache 2.0, uncensored, Flux-based 8.9B): `workflows/chroma1_hd_gguf_t2i_api.json`,
