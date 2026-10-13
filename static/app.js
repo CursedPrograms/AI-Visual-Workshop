@@ -478,6 +478,16 @@ async function buildRequest(prompt, job) {
   return ["/api/inpaint", { method: "POST", body: form }];
 }
 
+// Enter in the prompt boxes runs the current tab; Shift+Enter adds a new line.
+for (const id of ["prompt", "negative"]) {
+  $(id).addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      $("form").requestSubmit();
+    }
+  });
+}
+
 $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
   let prompt = $("prompt").value.trim();

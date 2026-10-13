@@ -301,6 +301,8 @@ Every image result has **use as photo**, which makes it the new working photo (f
 switches to Edit) so you can keep refining; **← Previous photo** steps back. That history lives
 in the browser tab — all results are also saved in `output/`.
 
+**Enter** in the prompt box runs the current tab (Shift+Enter adds a new line).
+
 **Queueing:** the Generate / Edit / Inpaint / Uncrop / Video button never locks — every press queues a new
 job, and ComfyUI runs them one after another. Each job gets a card at the top of the gallery
 showing its prompt, *Queued — 2 jobs ahead → Loading models → step n/25 — %* with a progress bar,
